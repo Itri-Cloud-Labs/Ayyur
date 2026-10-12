@@ -1,0 +1,452 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-12T22:27:33.209Z",
+  "title": "Design System: Ayyur",
+  "extensions": {
+    "colorMeta": {
+      "night": {
+        "role": "neutral",
+        "displayName": "Night",
+        "canonical": "oklch(0.17 0.035 268)",
+        "tonalRamp": [
+          "#060a1a",
+          "#1f2638",
+          "#3d4558",
+          "#5d667b",
+          "#80899f",
+          "#a4aec5",
+          "#c7d1e9",
+          "#e8eeff"
+        ]
+      },
+      "night-surface": {
+        "role": "neutral",
+        "displayName": "Night Surface",
+        "canonical": "oklch(0.225 0.04 268)",
+        "tonalRamp": [
+          "#050a1c",
+          "#1e263a",
+          "#3c445b",
+          "#5c667e",
+          "#7f89a2",
+          "#a3aec8",
+          "#c6d1ec",
+          "#e8eeff"
+        ]
+      },
+      "night-raised": {
+        "role": "neutral",
+        "displayName": "Night Raised",
+        "canonical": "oklch(0.285 0.045 268)",
+        "tonalRamp": [
+          "#04091e",
+          "#1d253d",
+          "#3b445e",
+          "#5b6681",
+          "#7d89a5",
+          "#a2aecb",
+          "#c4d1f0",
+          "#e8eeff"
+        ]
+      },
+      "night-line": {
+        "role": "neutral",
+        "displayName": "Night Line",
+        "canonical": "oklch(0.36 0.045 268)",
+        "tonalRamp": [
+          "#04091e",
+          "#1d253d",
+          "#3b445e",
+          "#5b6681",
+          "#7d89a5",
+          "#a2aecb",
+          "#c4d1f0",
+          "#e8eeff"
+        ]
+      },
+      "night-ink": {
+        "role": "neutral",
+        "displayName": "Starlight",
+        "canonical": "oklch(0.965 0.012 268)",
+        "tonalRamp": [
+          "#090b10",
+          "#24262c",
+          "#42454c",
+          "#63666d",
+          "#868991",
+          "#abaeb6",
+          "#cdd1d9",
+          "#ebeef7"
+        ]
+      },
+      "night-ink-muted": {
+        "role": "neutral",
+        "displayName": "Haze",
+        "canonical": "oklch(0.8 0.03 268)",
+        "tonalRamp": [
+          "#060a18",
+          "#202635",
+          "#3e4556",
+          "#5f6678",
+          "#81899c",
+          "#a6aec2",
+          "#c8d1e5",
+          "#e8eeff"
+        ]
+      },
+      "night-ink-subtle": {
+        "role": "neutral",
+        "displayName": "Mist",
+        "canonical": "oklch(0.68 0.035 268)",
+        "tonalRamp": [
+          "#060a1a",
+          "#1f2638",
+          "#3d4558",
+          "#5d667b",
+          "#80899f",
+          "#a4aec5",
+          "#c7d1e9",
+          "#e8eeff"
+        ]
+      },
+      "moon": {
+        "role": "primary",
+        "displayName": "Moonlight Gold",
+        "canonical": "oklch(0.87 0.16 90)",
+        "tonalRamp": [
+          "#100a00",
+          "#312500",
+          "#564200",
+          "#7d6200",
+          "#a78400",
+          "#d4a800",
+          "#facb39",
+          "#ffedbe"
+        ]
+      },
+      "moon-deep": {
+        "role": "primary",
+        "displayName": "Eclipse Gold",
+        "canonical": "oklch(0.7 0.152 90)",
+        "tonalRamp": [
+          "#100a00",
+          "#312500",
+          "#564200",
+          "#7d6200",
+          "#a78400",
+          "#d3a808",
+          "#f8cc47",
+          "#ffedbe"
+        ]
+      },
+      "prayer": {
+        "role": "secondary",
+        "displayName": "Fajr Blue",
+        "canonical": "oklch(0.76 0.13 258)",
+        "tonalRamp": [
+          "#000a22",
+          "#002356",
+          "#0d4289",
+          "#3265af",
+          "#5589d7",
+          "#79afff",
+          "#b5d3ff",
+          "#e5efff"
+        ]
+      },
+      "quran": {
+        "role": "secondary",
+        "displayName": "Mushaf Green",
+        "canonical": "oklch(0.82 0.17 152)",
+        "tonalRamp": [
+          "#001004",
+          "#003014",
+          "#005427",
+          "#007b3d",
+          "#00a453",
+          "#43cc76",
+          "#6cf098",
+          "#c6ffd4"
+        ]
+      },
+      "fasting": {
+        "role": "secondary",
+        "displayName": "Iftar Orange",
+        "canonical": "oklch(0.79 0.15 55)",
+        "tonalRamp": [
+          "#170600",
+          "#3e1c00",
+          "#6b3400",
+          "#9b4e00",
+          "#cc6c13",
+          "#f59145",
+          "#ffc299",
+          "#ffeadc"
+        ]
+      },
+      "habits": {
+        "role": "secondary",
+        "displayName": "Dusk Violet",
+        "canonical": "oklch(0.77 0.14 305)",
+        "tonalRamp": [
+          "#130024",
+          "#37005b",
+          "#572a7f",
+          "#794da5",
+          "#9d71cc",
+          "#c396f5",
+          "#dec3ff",
+          "#f3eaff"
+        ]
+      },
+      "tasks": {
+        "role": "secondary",
+        "displayName": "Zellige Teal",
+        "canonical": "oklch(0.83 0.12 200)",
+        "tonalRamp": [
+          "#000e0f",
+          "#002d2f",
+          "#004f53",
+          "#00757a",
+          "#009ca3",
+          "#2ac4cc",
+          "#5ce9f0",
+          "#befcff"
+        ]
+      },
+      "frozen": {
+        "role": "tertiary",
+        "displayName": "Frost",
+        "canonical": "oklch(0.91 0.05 225)",
+        "tonalRamp": [
+          "#000d14",
+          "#012b39",
+          "#244b59",
+          "#466c7c",
+          "#6890a0",
+          "#8cb5c6",
+          "#afd9ea",
+          "#d9f4ff"
+        ]
+      },
+      "danger": {
+        "role": "tertiary",
+        "displayName": "Ember Red",
+        "canonical": "oklch(0.7 0.19 25)",
+        "tonalRamp": [
+          "#1f0001",
+          "#4f0006",
+          "#860011",
+          "#ba1d27",
+          "#e54c4a",
+          "#ff847d",
+          "#ffbeb8",
+          "#ffe9e6"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "hero": {
+        "displayName": "Hero",
+        "purpose": "Next-prayer countdown and milestone numbers."
+      },
+      "display": {
+        "displayName": "Display",
+        "purpose": "Screen titles and celebration headlines."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Section and sheet titles."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Row titles and button labels."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Explanations and companion messages."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Chips and secondary row text."
+      },
+      "caption": {
+        "displayName": "Caption",
+        "purpose": "Timestamps and helper text."
+      }
+    },
+    "shadows": [
+      {
+        "name": "lip",
+        "value": "border-bottom: 4px solid <deep>",
+        "purpose": "Every pressable, filled control at rest."
+      },
+      {
+        "name": "pressed",
+        "value": "translateY(4px), lip 0",
+        "purpose": "The same control while held."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out-quart",
+        "value": "cubic-bezier(0.25, 1, 0.5, 1)",
+        "purpose": "Default easing for state transitions."
+      },
+      {
+        "name": "duration-fast",
+        "value": "150ms",
+        "purpose": "Presses, toggles, chips."
+      },
+      {
+        "name": "duration-standard",
+        "value": "250ms",
+        "purpose": "Sheets and screen transitions."
+      },
+      {
+        "name": "duration-celebration",
+        "value": "1200ms",
+        "purpose": "Upper bound for milestone celebrations; skippable by tap."
+      }
+    ],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single primary action on a screen.",
+      "html": "<button class=\"ds-btn-primary\">Log Fajr</button>",
+      "css": ".ds-btn-primary { font-family: Rubik, system-ui, sans-serif; font-weight: 700; font-size: 20px; line-height: 26px; height: 56px; padding: 0 24px; border: 0; border-bottom: 4px solid #c19900; border-radius: 16px; background: #fdce3e; color: #090e1f; cursor: pointer; transition: transform 120ms cubic-bezier(0.25, 1, 0.5, 1), border-bottom-width 120ms cubic-bezier(0.25, 1, 0.5, 1); } .ds-btn-primary:hover { filter: brightness(1.05); } .ds-btn-primary:active { transform: translateY(4px); border-bottom-width: 0; margin-bottom: 4px; } .ds-btn-primary:focus-visible { outline: 3px solid #f0f3fc; outline-offset: 2px; }"
+    },
+    {
+      "name": "Module Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Primary action inside a module, in that module's colour.",
+      "html": "<button class=\"ds-btn-module\">Start reading</button>",
+      "css": ".ds-btn-module { font-family: Rubik, system-ui, sans-serif; font-weight: 700; font-size: 20px; line-height: 26px; height: 56px; padding: 0 24px; border: 0; border-bottom: 4px solid #20aa5b; border-radius: 16px; background: #5ee38b; color: #090e1f; cursor: pointer; transition: transform 120ms cubic-bezier(0.25, 1, 0.5, 1), border-bottom-width 120ms cubic-bezier(0.25, 1, 0.5, 1); } .ds-btn-module:hover { filter: brightness(1.05); } .ds-btn-module:active { transform: translateY(4px); border-bottom-width: 0; margin-bottom: 4px; } .ds-btn-module:focus-visible { outline: 3px solid #f0f3fc; outline-offset: 2px; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Alternative action beside or below the primary.",
+      "html": "<button class=\"ds-btn-secondary\">Freeze this fast</button>",
+      "css": ".ds-btn-secondary { font-family: Rubik, system-ui, sans-serif; font-weight: 700; font-size: 20px; line-height: 26px; height: 56px; padding: 0 24px; border: 0; border-bottom: 4px solid #333c55; border-radius: 16px; background: #202941; color: #f0f3fc; cursor: pointer; transition: transform 120ms cubic-bezier(0.25, 1, 0.5, 1), border-bottom-width 120ms cubic-bezier(0.25, 1, 0.5, 1); } .ds-btn-secondary:hover { filter: brightness(1.05); } .ds-btn-secondary:active { transform: translateY(4px); border-bottom-width: 0; margin-bottom: 4px; } .ds-btn-secondary:focus-visible { outline: 3px solid #f0f3fc; outline-offset: 2px; }"
+    },
+    {
+      "name": "Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Filter or option; selected state uses the module tint and a check.",
+      "html": "<span class=\"ds-chip\">Mondays</span> <span class=\"ds-chip ds-chip-selected\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 16 16\" aria-hidden=\"true\"><path d=\"M3 8.5l3.2 3.2L13 5\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>Thursdays</span>",
+      "css": ".ds-chip { font-family: Rubik, system-ui, sans-serif; font-weight: 500; font-size: 15px; line-height: 20px; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 9999px; background: #202941; color: #b5bed2; } .ds-chip-selected { background: #472306; color: #ffa566; }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Single-line input with the label above.",
+      "html": "<label class=\"ds-field\"><span>Task name</span><input class=\"ds-input\" placeholder=\"Revise Surah Al-Mulk\"></label>",
+      "css": ".ds-field { font-family: Rubik, system-ui, sans-serif; display: grid; gap: 8px; font-weight: 500; font-size: 15px; color: #b5bed2; } .ds-input { font-family: Rubik, system-ui, sans-serif; font-size: 17px; height: 56px; padding: 0 16px; border-radius: 16px; border: 2px solid #333c55; background: #141b2e; color: #f0f3fc; outline: none; transition: border-color 150ms cubic-bezier(0.25, 1, 0.5, 1); } .ds-input::placeholder { color: #8f98af; } .ds-input:hover { border-color: #8f98af; } .ds-input:focus-visible { border-color: #fdce3e; }"
+    },
+    {
+      "name": "Status Marks",
+      "kind": "custom",
+      "description": "Completed, frozen, pending and unrecorded occurrences.",
+      "html": "<span class=\"ds-mark ds-mark-done\" title=\"Completed\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 16 16\" aria-hidden=\"true\"><path d=\"M3 8.5l3.2 3.2L13 5\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></span> <span class=\"ds-mark ds-mark-frozen\" title=\"Frozen\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 16 16\" aria-hidden=\"true\"><path d=\"M8 1v14M1.9 4.5l12.2 7M14.1 4.5l-12.2 7\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\"/></svg></span> <span class=\"ds-mark ds-mark-pending\" title=\"Pending\"></span> <span class=\"ds-mark ds-mark-unrecorded\" title=\"Not recorded\"></span>",
+      "css": ".ds-mark { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 9999px; box-sizing: border-box; vertical-align: middle; color: #090e1f; } .ds-mark-done { background: #7fb3ff; } .ds-mark-frozen { background: #bfe9fb; } .ds-mark-pending { border: 2px solid #333c55; } .ds-mark-unrecorded { border: 2px dashed #8f98af; }"
+    },
+    {
+      "name": "Tab Bar",
+      "kind": "nav",
+      "refersTo": "tab-bar",
+      "description": "Five tabs; the active one is Moonlight Gold.",
+      "html": "<nav class=\"ds-tabs\"><a class=\"ds-tab ds-tab-active\" href=\"#\">Today</a><a class=\"ds-tab\" href=\"#\">Quran</a><a class=\"ds-tab\" href=\"#\">Ayyur</a><a class=\"ds-tab\" href=\"#\">Habits</a><a class=\"ds-tab\" href=\"#\">Tasks</a></nav>",
+      "css": ".ds-tabs { font-family: Rubik, system-ui, sans-serif; display: flex; height: 64px; background: #141b2e; border-radius: 16px; } .ds-tab { flex: 1; display: grid; place-items: center; font-weight: 500; font-size: 13px; color: #8f98af; text-decoration: none; transition: color 150ms cubic-bezier(0.25, 1, 0.5, 1); } .ds-tab:hover { color: #b5bed2; } .ds-tab:focus-visible { outline: 3px solid #f0f3fc; outline-offset: -3px; border-radius: 16px; } .ds-tab-active, .ds-tab-active:hover { color: #fdce3e; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Bright Moon on a Clear Night",
+    "overview": "Ayyur is used in the dark more than most apps: before Fajr, after Isha, in bed with the Quran. The system is built for that scene. The screen is a deep, slightly blue night, and one bright, friendly moon sits in it. Every act of worship has its own clear colour, the way stars differ in colour when the sky is dark enough to see them. Night is the home theme and the one that appears in screenshots; a day theme exists for people whose phone is set to light, and the app follows the system setting.\n\nThe physical feel is soft and chunky. Controls are thick, rounded and raised on a solid lip that sinks when pressed. Illustration is flat vector with bold fills and no outlines. Motion is lively: springy presses, an animated mascot, real celebration at milestones, with sound and haptics. All of that energy belongs to progress and encouragement. Worship screens (the Quran reader, adhkar, a prayer in progress) are a calm zone: no mascot, no counters, no celebration, one module colour used quietly, and generous type.\n\nThis system rejects cluttered legacy apps with ads, dense menus, stock mosque photos and green-and-gold gradients. It rejects looking like a kids' app, a generic AI chatbot with purple gradients and sparkle icons, and anything solemn and heavy with ornate dark luxury. It also rejects guilt: no flames, no loss warnings, no sad mascot.",
+    "keyCharacteristics": [
+      "Night-first: deep blue-black canvas, bright flat colour on top.",
+      "One moon: Moonlight Gold belongs to Ayyur, streaks and the primary action.",
+      "A colour per module: prayer, Quran, fasting, habits and tasks are recognisable at a glance.",
+      "Soft and chunky: 16px corners, 4px lips, 56px controls, no blurred shadows.",
+      "Two tempos: playful for progress, still for worship.",
+      "Heritage as accent: the khatam star, the Tifinagh wordmark and an Amazigh weave, used sparingly."
+    ],
+    "rules": [
+      {
+        "name": "The One Moon Rule",
+        "body": "Moonlight Gold is for Ayyur, streaks, completion and the one primary action. It is never a module colour, never a background wash, never decoration.",
+        "section": "colors"
+      },
+      {
+        "name": "The Module Owns Its Colour Rule",
+        "body": "A module colour appears only on that module's own content. Fajr Blue on a fasting screen is a bug.",
+        "section": "colors"
+      },
+      {
+        "name": "The Night Ink Rule",
+        "body": "Text on any bright fill is Night. White text on a module colour fails contrast and is prohibited.",
+        "section": "colors"
+      },
+      {
+        "name": "The No Red for Worship Rule",
+        "body": "A missed or unrecorded prayer, fast or reading is shown in neutral Mist with an outline shape. Red, warning icons and strikethroughs are forbidden there.",
+        "section": "colors"
+      },
+      {
+        "name": "The Sentence Case Rule",
+        "body": "Buttons, titles and labels are sentence case. Uppercase is reserved for badge names of four words or fewer.",
+        "section": "typography"
+      },
+      {
+        "name": "The Quran Is Not UI Rule",
+        "body": "Quran text is set in an Uthmani, Madinah-style face (KFGQPC Uthmanic Hafs or an equivalent with confirmed licensing), at 28px or larger with a line height of at least 2. It is never set in Rubik, never bold, never coloured with a module colour, and never truncated. The exact font file is still to be chosen along with the Quran data source.",
+        "section": "typography"
+      },
+      {
+        "name": "The Calligraphy Is Art Rule",
+        "body": "Calligraphic Arabic (Bismillah, surah name plates, milestone titles) is drawn artwork, placed as an image with an accessible label. It is never used for text the user must read to operate the app.",
+        "section": "typography"
+      },
+      {
+        "name": "The No Blur Rule",
+        "body": "`box-shadow` with a blur radius, glows around cards and glass effects are prohibited. The only glow in the product is flat: concentric discs of Night Surface and Night Raised behind the moon.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Lip Means Pressable Rule",
+        "body": "If it has a lip, it responds to a tap. Static surfaces never get one.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do design the night theme first and check every screen in the day theme before it ships.",
+      "Do put Night (`on-color`) text on every bright fill; it clears 6:1 on all of them.",
+      "Do pair every state with an icon or a word. Completed, frozen, pending and unrecorded must be distinguishable in greyscale.",
+      "Do give each screen exactly one primary button.",
+      "Do keep worship screens still: no mascot, no streak counters, no confetti, no sound.",
+      "Do let sound, haptics and motion be switched off separately, and honour system reduce-motion.",
+      "Do write button labels as verb plus object, in natural Muslim English.",
+      "Do test layouts at the largest system font size, Quran text included."
+    ],
+    "donts": [
+      "Don't build cluttered legacy app screens: ads, dense menus, stock mosque photos, green-and-gold gradients.",
+      "Don't make it a kids' app. No extra limbs, props or costumes on Ayyur, no more than two decorative stars beside it outside a celebration, no rainbow screens.",
+      "Don't make the companion a generic AI chatbot: no purple gradients, no sparkle icon standing for \"AI\", no chat box as the whole product.",
+      "Don't go solemn and heavy: no ornate dark luxury, gold filigree or lecturing copy.",
+      "Don't use a flame for streaks, show a sad or crying Ayyur, or use red on missed worship.",
+      "Don't use gradients on fills or text, blurred shadows, glass effects, or a coloured stripe along one side of a card.",
+      "Don't round cards beyond 16px or sheets beyond 20px.",
+      "Don't use `font-bold` or other weight utilities; pick the family (`font-heading`, `font-display`).",
+      "Don't set Quran text in Rubik, colour it, or truncate it.",
+      "Don't show a freeze with the completed mark, or imply anywhere that worship was performed when the user has not said so."
+    ]
+  }
+}
