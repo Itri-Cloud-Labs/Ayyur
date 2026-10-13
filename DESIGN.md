@@ -125,7 +125,8 @@ components:
     backgroundColor: "{colors.night-surface}"
     textColor: "{colors.night-ink-subtle}"
     typography: "{typography.caption}"
-    height: "64px"
+    rounded: "{rounded.sheet}"
+    height: "70px"
 ---
 
 # Design System: Ayyur
@@ -259,8 +260,11 @@ Used rarely. Lists are plain rows on the canvas.
 - **Disabled:** Night Raised fill, Mist text.
 
 ### Navigation
-- **Tab bar:** Night Surface, 64px plus the safe area, five tabs with filled, rounded icons and Caption labels. Icons come from one filled, rounded set; Phosphor Fill is the recommended source.
-- **Active tab:** icon and label in Moonlight Gold, except the companion tab, which shows the moon mark itself. Inactive tabs are Mist.
+- **Tab bar:** a floating bar, inset 16px from the screen edges and sitting above the safe area. Night Surface with a 1px Night Line outline and 20px corners, at least 70px tall, capped at 480px wide on tablets. It is flat: no blur, no shadow, no lip. Five tabs in this order: Home, Quran, Ayyur, Habits, You.
+- **Tabs:** a 24px Phosphor Fill icon over a Caption label. Inactive tabs are Mist. The active tab's icon and label take the moon `text` shade, the label goes Bold, and a moon `soft` pill (56 by 32px) sits behind the icon, so the state is never colour alone.
+- **Ayyur tab:** a 60px moon in the centre, raised 22px above the bar's top edge on an Eclipse Gold lip, and it sinks onto the lip when pressed. It is a plain moon while another tab is open and shows its face when the companion is open.
+- **Motion:** the pill fades and widens in over 200ms; changing tab gives a light haptic. The bar slides off the bottom edge when the keyboard opens and on any screen that calls `useHideTabBar()`. Worship screens must call it.
+- **Icons:** one filled, rounded set everywhere: Phosphor Fill (`phosphor-react-native`).
 - **Headers:** Display title aligned left, no bar background, actions as 48px icon buttons.
 
 ### Status marks
