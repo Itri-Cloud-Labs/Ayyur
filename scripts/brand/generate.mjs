@@ -208,6 +208,12 @@ const logoDir = join(assets, 'brand', 'logo');
 const mark = `<g transform="rotate(-6 ${CX} ${CY})">${moonBody()}${face('happy')}</g>`;
 await emit(logoDir, 'ayyur-mark', svg(512, 512, mark), [512]);
 
+// Tab bar moon: cropped to the disc so it can be sized exactly. Plain when another tab is open, the face when Ayyur's is.
+const tabDir = join(assets, 'brand', 'tab');
+const disc = `${CX - R} ${CY - R} ${2 * R} ${2 * R}`;
+await emit(tabDir, 'ayyur-tab-plain', svg(2 * R, 2 * R, `<g transform="rotate(-6 ${CX} ${CY})">${moonBody()}</g>`, disc), [192]);
+await emit(tabDir, 'ayyur-tab-face', svg(2 * R, 2 * R, mark, disc), [192]);
+
 const L = wordmark.latin;
 const T = wordmark.tifinagh;
 const latinW = L.x2 - L.x1;

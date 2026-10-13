@@ -20,7 +20,7 @@ Ayyur (ⴰⵢⵢⵓⵔ) means "moon" and "month" in Tamazight. The app helps Mus
 
 Core features are free, with no ads. The app works offline and without an account; cloud sync is optional and encrypts data on the device before upload.
 
-> **Status:** early development. The project is scaffolded and the design system is in place. No features are built yet.
+> **Status:** early development. The design system and the tab bar are in place, with five empty screens behind it. No features are built yet.
 
 ## Meet Ayyur
 
@@ -38,8 +38,9 @@ The moon is the mascot and the AI companion. It celebrates progress, and it stay
 ## Stack
 
 - [Expo](https://expo.dev) SDK 57 and React Native 0.86, in TypeScript
+- [Expo Router](https://docs.expo.dev/router/introduction/) for navigation, with routes in `src/app/`
 - [NativeWind](https://www.nativewind.dev) 4 with Tailwind CSS 3 for styling
-- Rubik for interface type
+- Rubik for interface type and Phosphor Fill for icons
 
 Planned: SQLite on device as the source of truth, Clerk for optional sign-in, and Convex for encrypted sync.
 
@@ -56,6 +57,7 @@ Then open the app in Expo Go, or press `a` for Android or `i` for iOS.
 | --- | --- |
 | `npm start` | Start the dev server |
 | `npm run android` / `npm run ios` | Start and open on a device or emulator |
+| `npm run web` | Start and open in a browser |
 | `npm run lint` | Lint with ESLint |
 | `npx tsc --noEmit` | Typecheck |
 | `npm run brand` | Regenerate the mascot, logo and icons from `scripts/brand/generate.mjs` |

@@ -1,0 +1,18 @@
+import { Tabs } from 'expo-router/js-tabs';
+
+import { TabBar } from '@/components/tab-bar/TabBar';
+import { TabBarVisibilityProvider } from '@/components/tab-bar/visibility';
+
+export default function TabsLayout() {
+  return (
+    <TabBarVisibilityProvider>
+      <Tabs tabBar={(props) => <TabBar {...props} />} screenOptions={{ headerShown: false }}>
+        <Tabs.Screen name="index" options={{ title: 'Home' }} />
+        <Tabs.Screen name="quran" options={{ title: 'Quran' }} />
+        <Tabs.Screen name="ayyur" options={{ title: 'Ayyur' }} />
+        <Tabs.Screen name="habits" options={{ title: 'Habits' }} />
+        <Tabs.Screen name="you" options={{ title: 'You' }} />
+      </Tabs>
+    </TabBarVisibilityProvider>
+  );
+}
