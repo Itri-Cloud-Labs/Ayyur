@@ -56,6 +56,7 @@ Then open the app in Expo Go, or press `a` for Android or `i` for iOS.
 | Command | What it does |
 | --- | --- |
 | `npm start` | Start the dev server |
+| `npm run dev` | Start the dev server through a tunnel, for Expo Go on another network |
 | `npm run android` / `npm run ios` | Start and open on a device or emulator |
 | `npm run web` | Start and open in a browser |
 | `npm run lint` | Lint with ESLint |
