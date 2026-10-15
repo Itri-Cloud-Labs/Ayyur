@@ -256,21 +256,25 @@ function AyyurStage({
       ],
     };
   });
+  // The halo belongs to the stage beat. It fades with the change of beat rather than vanishing while
+  // he is still shrinking.
+  const haloShown = useSharedValue(staged ? 1 : 0);
+  useEffect(() => {
+    haloShown.value = withTiming(staged ? 1 : 0, { duration: reduceMotion ? 0 : 320, easing: EASE_OUT });
+  }, [haloShown, reduceMotion, staged]);
   const halo = useAnimatedStyle(() => ({
-    opacity: rise.value * (1 - dive.value),
+    opacity: rise.value * (1 - dive.value) * haloShown.value,
     transform: [{ scale: scale.value }],
   }));
 
   return (
     // The large pose gets extra room so his halo clears the header and the question.
     <View style={[styles.centre, { height: size ? size + (staged ? Math.round(size * 0.36) : 12) : 0 }]}>
-      {staged ? (
-        <Animated.View style={[styles.halo, halo]}>
-          <View style={styles.haloOuter}>
-            <View style={styles.haloInner} />
-          </View>
-        </Animated.View>
-      ) : null}
+      <Animated.View style={[styles.halo, halo]}>
+        <View style={styles.haloOuter}>
+          <View style={styles.haloInner} />
+        </View>
+      </Animated.View>
       {cue.celebrate ? (
         <View style={styles.burstOrigin}>
           {BURST.map((star, i) => (
@@ -573,5 +577,5 @@ const styles = StyleSheet.create({
     height: 0,
   },
   burst: { position: 'absolute' },
-  halo: { position: 'absolute' },
+  halo: { position: 'absolute', pointerEvents: 'none' },
 });
