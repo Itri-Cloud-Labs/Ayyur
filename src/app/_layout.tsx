@@ -13,6 +13,8 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { useColorScheme } from 'react-native';
 
+import { onboardingStore, useOnboarding } from '@/onboarding/store';
+
 SplashScreen.preventAutoHideAsync();
 
 // The navigator paints these behind screens during transitions, so they match the canvas token.
@@ -28,13 +30,19 @@ export default function RootLayout() {
     Rubik_800ExtraBold,
   });
 
+  // Any onboarding draft from an earlier session loads before the first screen decides where to go.
+  const hydrated = useOnboarding((s) => s.hydrated);
   useEffect(() => {
-    if (loaded || error) {
+    onboardingStore.hydrate();
+  }, []);
+
+  useEffect(() => {
+    if ((loaded || error) && hydrated) {
       SplashScreen.hideAsync();
     }
-  }, [loaded, error]);
+  }, [loaded, error, hydrated]);
 
-  if (!loaded && !error) {
+  if ((!loaded && !error) || !hydrated) {
     return null;
   }
 

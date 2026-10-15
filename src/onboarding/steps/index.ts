@@ -1,73 +1,94 @@
+import { wants } from '../data';
 import type { StepDef } from '../flow';
-import { Account, Welcome } from './arrive';
-import { Fasting, Habits, Hijri } from './days';
-import { AsrStep, Congregation, ExtraPrayers, FineTune, Location, MadhhabStep, Method, PrayerFocus, Reminders } from './prayer';
+import { Welcome } from './arrive';
+import { Fasting, Habits } from './days';
 import { Complete, Summary } from './plan';
-import { QuranAmount, QuranGoals, QuranKnownStep, QuranReadingStep, QuranTimeStep, Translation } from './quran';
-import { BackgroundStep, BirthYear, GenderStep, Goals, Name, PracticeStep } from './you';
-import { Feel, Note, Notifications, NudgesStep, Privacy, Rhythm, VoiceStep } from './yourday';
+import { Location, MadhhabStep, Method, PrayerExtras, PrayerFocus, Reminders } from './prayer';
+import { QuranPlan, QuranReadingStep } from './quran';
+import { BirthYear, GenderStep, Goals, Name, PracticeStep } from './you';
+import { Be, Day, Note, Privacy } from './yourday';
 
-// The whole interview, in order. Ids match docs/onboarding.md where the step exists there.
+// The interview, in order. Each screen asks one thing and keeps its follow-ups on the same screen;
+// whole sections are left out when the user's goals don't touch them (the summary offers them back).
 export const STEPS: StepDef[] = [
-  { id: 'welcome', part: 'arrive', Component: Welcome },
-  { id: 'account', part: 'arrive', Component: Account },
+  { id: 'welcome', part: 'arrive', beat: 'stage', Component: Welcome },
 
-  { id: 'name', part: 'you', optional: true, keys: ['name'], Component: Name },
-  { id: 'birth-year', part: 'you', Component: BirthYear },
-  { id: 'gender', part: 'you', optional: true, keys: ['gender', 'jumuah'], Component: GenderStep },
-  { id: 'background', part: 'you', optional: true, keys: ['background'], Component: BackgroundStep },
-  { id: 'practice', part: 'you', optional: true, keys: ['practice'], Component: PracticeStep },
-  { id: 'goals', part: 'you', optional: true, keys: ['intentions', 'topIntention'], Component: Goals },
-
-  { id: 'location', part: 'prayer', Component: Location },
-  { id: 'madhhab', part: 'prayer', optional: true, keys: ['madhhab'], Component: MadhhabStep },
-  { id: 'asr', part: 'prayer', optional: true, keys: ['asr'], Component: AsrStep },
-  { id: 'method', part: 'prayer', optional: true, keys: ['method'], Component: Method },
-  { id: 'fine-tune', part: 'prayer', optional: true, keys: ['offsets'], Component: FineTune },
-  { id: 'prayer-focus', part: 'prayer', optional: true, keys: ['prayerFocus'], Component: PrayerFocus },
-  { id: 'congregation', part: 'prayer', optional: true, keys: ['congregation'], when: (a) => a.gender === 'male', Component: Congregation },
+  { id: 'name', part: 'you', beat: 'talk', answered: (a) => a.name.trim().length > 0, Component: Name },
   {
-    id: 'extra-prayers',
+    id: 'birth-year',
+    part: 'you',
+    beat: 'talk',
+    required: { ready: (a) => a.birthYear !== null, reason: 'Enter the four digits of your birth year.' },
+    Component: BirthYear,
+  },
+  { id: 'gender', part: 'you', beat: 'talk', answered: (a) => a.gender !== null, Component: GenderStep },
+  { id: 'practice', part: 'you', beat: 'pick', answered: (a) => a.practice !== null || a.background !== null, Component: PracticeStep },
+  { id: 'goals', part: 'you', beat: 'pick', answered: (a) => a.intentions.length > 0, Component: Goals },
+
+  {
+    id: 'location',
     part: 'prayer',
-    optional: true,
-    keys: ['extraPrayers'],
-    when: (a) => a.practice !== 'new' && a.practice !== 'starting',
-    Component: ExtraPrayers,
+    beat: 'talk',
+    tone: 'prayer',
+    required: { ready: (a) => a.city !== null, reason: 'Use your location or choose a city to continue.' },
+    Component: Location,
   },
-  { id: 'reminders', part: 'prayer', optional: true, Component: Reminders },
-
-  { id: 'quran-reading', part: 'quran', optional: true, keys: ['quranReading'], Component: QuranReadingStep },
-  { id: 'translation', part: 'quran', optional: true, Component: Translation },
-  { id: 'quran-goals', part: 'quran', optional: true, keys: ['quranGoals'], Component: QuranGoals },
-  { id: 'quran-amount', part: 'quran', optional: true, keys: ['quranAmount'], when: (a) => a.quranGoals.includes('read'), Component: QuranAmount },
+  { id: 'madhhab', part: 'prayer', beat: 'pick', tone: 'prayer', answered: (a) => a.madhhab !== null, Component: MadhhabStep },
+  { id: 'method', part: 'prayer', beat: 'pick', tone: 'prayer', Component: Method },
+  { id: 'prayer-focus', part: 'prayer', beat: 'tool', tone: 'prayer', answered: (a) => a.prayerFocus !== null, Component: PrayerFocus },
   {
-    id: 'quran-known',
+    id: 'prayer-extras',
+    part: 'prayer',
+    beat: 'pick',
+    tone: 'prayer',
+    answered: (a) => a.extraPrayers.length > 0 || a.congregation === true,
+    when: (a) => a.gender === 'male' || (a.practice !== 'new' && a.practice !== 'starting'),
+    Component: PrayerExtras,
+  },
+  { id: 'reminders', part: 'prayer', beat: 'pick', tone: 'prayer', Component: Reminders },
+
+  {
+    id: 'quran-reading',
     part: 'quran',
-    optional: true,
-    keys: ['quranKnown'],
-    when: (a) => a.quranGoals.includes('memorise') || a.quranGoals.includes('revise'),
-    Component: QuranKnownStep,
+    beat: 'pick',
+    tone: 'quran',
+    answered: (a) => a.quranReading !== null,
+    Component: QuranReadingStep,
   },
-  { id: 'quran-time', part: 'quran', optional: true, keys: ['quranTime'], Component: QuranTimeStep },
-
-  { id: 'hijri', part: 'days', optional: true, keys: ['hijriConvention', 'hijriOffset'], Component: Hijri },
-  { id: 'fasting', part: 'days', optional: true, keys: ['fasts'], Component: Fasting },
-  { id: 'habits', part: 'days', optional: true, keys: ['habits', 'ownHabit'], Component: Habits },
-
-  { id: 'rhythm', part: 'yourday', optional: true, Component: Rhythm },
-  { id: 'nudges', part: 'yourday', optional: true, keys: ['nudges'], Component: NudgesStep },
   {
-    id: 'notifications',
-    part: 'yourday',
-    optional: true,
-    when: (a) => !(a.reminderWhen === 'none' && a.nudges === 'prayers'),
-    Component: Notifications,
+    id: 'quran-plan',
+    part: 'quran',
+    beat: 'pick',
+    tone: 'quran',
+    answered: (a) => a.quranGoals.length > 0,
+    when: (a) => wants(a, 'quran'),
+    Component: QuranPlan,
   },
-  { id: 'feel', part: 'yourday', optional: true, Component: Feel },
-  { id: 'voice', part: 'yourday', optional: true, keys: ['voice'], Component: VoiceStep },
-  { id: 'privacy', part: 'yourday', optional: true, keys: ['cloudSync', 'aiContext', 'checkIns'], Component: Privacy },
-  { id: 'note', part: 'yourday', optional: true, keys: ['note'], Component: Note },
 
-  { id: 'summary', part: 'plan', Component: Summary },
-  { id: 'complete', part: 'plan', Component: Complete },
+  {
+    id: 'fasting',
+    part: 'days',
+    beat: 'pick',
+    tone: 'fasting',
+    answered: (a) => a.fasts.length > 0,
+    when: (a) => wants(a, 'fasting'),
+    Component: Fasting,
+  },
+  {
+    id: 'habits',
+    part: 'days',
+    beat: 'pick',
+    tone: 'habits',
+    answered: (a) => a.habits.length > 0 || a.ownHabit.trim().length > 0,
+    when: (a) => wants(a, 'habits'),
+    Component: Habits,
+  },
+
+  { id: 'day', part: 'yourday', beat: 'pick', answered: (a) => a.nudges !== null, Component: Day },
+  { id: 'be', part: 'yourday', beat: 'pick', answered: (a) => a.voice !== null, Component: Be },
+  { id: 'privacy', part: 'yourday', beat: 'calm', Component: Privacy },
+  { id: 'note', part: 'yourday', beat: 'talk', answered: (a) => a.note.trim().length > 0, Component: Note },
+
+  { id: 'summary', part: 'plan', beat: 'pick', Component: Summary },
+  { id: 'complete', part: 'plan', beat: 'stage', Component: Complete },
 ];

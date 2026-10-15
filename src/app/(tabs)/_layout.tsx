@@ -3,11 +3,12 @@ import { Tabs } from 'expo-router/js-tabs';
 
 import { TabBar } from '@/components/tab-bar/TabBar';
 import { TabBarVisibilityProvider } from '@/components/tab-bar/visibility';
-import { useOnboardingState } from '@/onboarding/store';
+import { useOnboarding } from '@/onboarding/store';
 
 export default function TabsLayout() {
-  // Until storage exists, onboarding runs on every launch of the app.
-  const { completed } = useOnboardingState();
+  // Until a profile exists, onboarding runs on each launch (resuming a draft if one was left).
+  // The root layout has already loaded any draft before this renders.
+  const completed = useOnboarding((s) => s.completed);
   if (!completed) return <Redirect href="/onboarding" />;
 
   return (

@@ -94,7 +94,7 @@ export const practiceOptions: { id: Practice; label: string; reply: string }[] =
   { id: 'starting', label: 'Just starting to practise', reply: "Lovely. We'll start small and build from there." },
   { id: 'returning', label: 'Coming back after a break', reply: "Welcome back. We'll pick up wherever suits you." },
   { id: 'unsteady', label: 'Practising, but not steady', reply: "That's most of us. I'll help with the steady part." },
-  { id: 'steady', label: 'Steady, and I want more', reply: "Masha'Allah. Let's find what's next for you." },
+  { id: 'steady', label: 'Steady, and I want more', reply: "Then let's find what's next for you." },
 ];
 
 export const intentions: { id: string; label: string }[] = [
@@ -106,8 +106,19 @@ export const intentions: { id: string; label: string }[] = [
   { id: 'learn', label: 'Learn more about my deen' },
   { id: 'organise', label: 'Organise my day around ibadah' },
   { id: 'ramadan', label: 'Get ready for Ramadan' },
-  { id: 'explore', label: 'Just explore for now' },
 ];
+
+/** Whether a section applies: picked in goals, asked for from the summary, or goals skipped altogether. */
+export function wants(answers: Pick<Answers, 'intentions' | 'optIn' | 'exploring'>, section: 'quran' | 'fasting' | 'habits') {
+  if (answers.optIn.includes(section)) return true;
+  // Just exploring: keep the interview short; the summary offers each section.
+  if (answers.exploring) return false;
+  if (answers.intentions.length === 0) return true;
+  const ids = { quran: ['quran-daily', 'memorise', 'learn'], fasting: ['fasting', 'ramadan'], habits: ['habits', 'organise', 'learn'] }[
+    section
+  ];
+  return answers.intentions.some((id) => ids.includes(id));
+}
 
 export const extraPrayers = [
   { id: 'sunnah', label: 'Sunnah before and after the five' },
@@ -163,7 +174,7 @@ export const habitOptions = [
   'Evening adhkar',
   'Adhkar after prayer',
   'Istighfar',
-  'Salawat on the Prophet ﷺ',
+  'Salawat on the Prophet',
   'Daily dua',
   'Surah al-Kahf on Fridays',
   'Give sadaqa',
@@ -212,4 +223,20 @@ export function previewTimes(answers: Pick<Answers, 'method' | 'asr' | 'offsets'
     isha: method.ishaShift,
   };
   return samplePrayers.map((p) => ({ id: p.id, name: p.name, minutes: p.start + shift[p.id] + answers.offsets[p.id] }));
+}
+
+/**
+ * Today's prayers with the user's own method, Asr and adjustments, each running until the next begins
+ * (Fajr until sunrise, Isha until midnight in this sample). Used by the ending line and by Home, so
+ * both agree with what the user just chose.
+ */
+export function todayPrayers(answers: Pick<Answers, 'method' | 'asr' | 'offsets' | 'city'>) {
+  const times = previewTimes(answers);
+  const sunrise = samplePrayers[0].end + (times[0].minutes - samplePrayers[0].start);
+  return times.map((t, i) => ({
+    id: t.id,
+    name: t.name,
+    start: t.minutes,
+    end: i === 0 ? sunrise : i === times.length - 1 ? 24 * 60 : times[i + 1].minutes,
+  }));
 }

@@ -12,17 +12,9 @@ import { NextPrayer } from '@/components/home/next-prayer';
 import { PrayerRow, type PrayerStatus } from '@/components/home/prayer-row';
 import { TodayRow } from '@/components/home/today-row';
 import { useTabBarSpace } from '@/components/tab-bar/visibility';
-import { useOnboardingState } from '@/onboarding/store';
-import {
-  type Prayer,
-  type PrayerId,
-  sampleDoneItems,
-  sampleLoggedPrayers,
-  samplePrayers,
-  sampleReading,
-  sampleStreak,
-  sampleTodayItems,
-} from '@/data/sample';
+import { useOnboarding } from '@/onboarding/store';
+import { type Prayer, type PrayerId, sampleDoneItems, sampleLoggedPrayers, sampleStreak, type TodayItem } from '@/data/sample';
+import { todayPrayers, wants } from '@/onboarding/data';
 import { tapHaptic } from '@/lib/haptics';
 import { formatDate, minutesOfDay } from '@/lib/time';
 import { useNow } from '@/lib/use-now';
@@ -49,12 +41,18 @@ export default function HomeScreen() {
   const { top } = useSafeAreaInsets();
   const tabBarSpace = useTabBarSpace();
   const now = useNow();
-  const { answers } = useOnboardingState();
+  const answers = useOnboarding((s) => s.answers);
 
   // Held for the session only, until there is storage to write to.
   const [logged, setLogged] = useState(() => new Set<PrayerId>(sampleLoggedPrayers));
   const [doneItems, setDoneItems] = useState(() => new Set(sampleDoneItems));
 
+  // The times and habits the user set up in onboarding, not sample ones.
+  const samplePrayers = todayPrayers(answers);
+  const habits: TodayItem[] = [...answers.habits, answers.ownHabit.trim()]
+    .filter(Boolean)
+    .slice(0, 4)
+    .map((title) => ({ id: `habit-${title}`, kind: 'habit', title }));
   const minutes = minutesOfDay(now);
   const current = samplePrayers.find((prayer) => minutes >= prayer.start && minutes < prayer.end);
   const laterToday = samplePrayers.find((prayer) => prayer.start > minutes);
@@ -75,11 +73,7 @@ export default function HomeScreen() {
       className="flex-1 bg-canvas"
       contentContainerStyle={{ paddingTop: top + 12, paddingBottom: tabBarSpace, alignItems: 'center' }}>
       <View className="w-full max-w-[560px] px-6">
-        <HomeHeader
-          name={answers.name.trim() || null}
-          streak={sampleStreak}
-          onStreakPress={() => router.navigate('/you')}
-        />
+        <HomeHeader name={answers.name.trim() || null} streak={sampleStreak} onStreakPress={() => router.navigate('/you')} />
 
         <View className="mt-6">
           <NextPrayer
@@ -123,24 +117,35 @@ export default function HomeScreen() {
           </Pressable>
         </View>
         <View>
-          <TodayRow
-            tone="quran"
-            icon={BookOpenIcon}
-            title="Continue reading"
-            detail={`${sampleReading.surah}, ayah ${sampleReading.ayah}`}
-            onPress={() => router.navigate('/quran')}
-          />
-          {sampleTodayItems.map((item) => (
+          {wants(answers, 'quran') ? (
+            <TodayRow
+              tone="quran"
+              icon={BookOpenIcon}
+              title="Start reading"
+              detail="Al-Fatihah, from the beginning"
+              onPress={() => router.navigate('/quran')}
+            />
+          ) : null}
+          {habits.map((item) => (
             <TodayRow
               key={item.id}
-              tone={item.kind === 'habit' ? 'habits' : 'tasks'}
-              icon={item.kind === 'habit' ? RepeatIcon : ListChecksIcon}
+              tone="habits"
+              icon={RepeatIcon}
               title={item.title}
-              detail={item.kind === 'habit' ? 'Habit' : 'Task'}
+              detail="Habit"
               done={doneItems.has(item.id)}
               onPress={() => toggleItem(item.id)}
             />
           ))}
+          {habits.length === 0 ? (
+            <TodayRow
+              tone="habits"
+              icon={ListChecksIcon}
+              title="Pick a habit to start"
+              detail="Small and daily works best"
+              onPress={() => router.navigate('/habits')}
+            />
+          ) : null}
         </View>
       </View>
     </ScrollView>

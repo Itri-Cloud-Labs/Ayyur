@@ -1,26 +1,20 @@
-import { useEffect, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
-import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
-import Svg, { Circle, Line, Polygon } from 'react-native-svg';
+import { useState } from 'react';
+import { Text, View } from 'react-native';
+import Svg, { Circle, G, Line, Polygon } from 'react-native-svg';
 
-import { tapHaptic } from '@/lib/haptics';
+import { fixed, night } from '@/theme/palette';
 
-type Goal = { id: string; label: string };
-
-// Where each star sits, as fractions of the sky's width and height. Hand-placed so labels never collide.
+// Where stars sit, as fractions of the width and height, in drawing order. Hand-placed to stay apart.
 const PLACES = [
-  { x: 0.2, y: 0.05 },
-  { x: 0.66, y: 0.02 },
-  { x: 0.44, y: 0.22 },
-  { x: 0.82, y: 0.27 },
-  { x: 0.16, y: 0.39 },
-  { x: 0.6, y: 0.47 },
-  { x: 0.28, y: 0.66 },
-  { x: 0.8, y: 0.7 },
-  { x: 0.5, y: 0.86 },
+  { x: 0.5, y: 0.16 },
+  { x: 0.2, y: 0.42 },
+  { x: 0.8, y: 0.38 },
+  { x: 0.36, y: 0.8 },
+  { x: 0.68, y: 0.78 },
+  { x: 0.12, y: 0.82 },
+  { x: 0.9, y: 0.82 },
+  { x: 0.5, y: 0.52 },
 ];
-const LABEL = 128;
-const STAR = 52;
 
 // An eight-point star (khatam), the brand's own.
 function starPoints(cx: number, cy: number, r: number) {
@@ -32,114 +26,72 @@ function starPoints(cx: number, cy: number, r: number) {
   }).join(' ');
 }
 
-function Star({
-  goal,
-  lit,
-  brightest,
-  left,
-  top,
-  onPress,
-}: {
-  goal: Goal;
-  lit: boolean;
-  brightest: boolean;
-  left: number;
-  top: number;
-  onPress: () => void;
-}) {
-  const reduceMotion = useReducedMotion();
-  const glow = useSharedValue(lit ? 1 : 0);
-  useEffect(() => {
-    glow.value = withTiming(brightest ? 1.35 : lit ? 1 : 0, { duration: reduceMotion ? 0 : 260, easing: Easing.bezier(0.25, 1, 0.5, 1) });
-  }, [brightest, glow, lit, reduceMotion]);
-  const star = useAnimatedStyle(() => ({ transform: [{ scale: 0.75 + glow.value * 0.25 }] }));
-
-  const state = brightest ? 'lit, your brightest' : lit ? 'lit' : 'not lit';
-  return (
-    <Pressable
-      accessibilityRole="checkbox"
-      accessibilityLabel={goal.label}
-      accessibilityState={{ checked: lit }}
-      accessibilityValue={{ text: state }}
-      accessibilityHint={lit && !brightest ? 'Tap again to make it your brightest' : brightest ? 'Tap to turn it off' : undefined}
-      onPress={() => {
-        tapHaptic();
-        onPress();
-      }}
-      style={{ position: 'absolute', left: left - LABEL / 2, top: top - STAR / 2, width: LABEL }}
-      className="items-center active:opacity-80">
-      <Animated.View style={star}>
-        <Svg width={STAR} height={STAR} viewBox="0 0 44 44">
-          {brightest ? <Circle cx={22} cy={22} r={21} fill="#3a2c00" /> : null}
-          <Polygon points={starPoints(22, 22, lit ? 15 : 11)} fill={lit ? '#fdce3e' : '#4c5670'} />
-        </Svg>
-      </Animated.View>
-      <Text
-        numberOfLines={3}
-        className={`mt-1 text-center text-body ${brightest ? 'font-heading text-moon-text' : lit ? 'font-medium text-ink' : 'font-medium text-ink-muted'}`}>
-        {goal.label}
-      </Text>
-    </Pressable>
-  );
-}
-
 /**
- * Goals as stars. Tapping one lights it and joins it to the others into a constellation; tapping a lit
- * star again makes it the brightest (the one that matters most); tapping the brightest turns it off.
+ * The user's goals drawn as a constellation: a picture of what they chose, not a control. The brightest
+ * goal sits at the top, ringed; lines join the rest to it. Shown on the summary as the plan's centrepiece.
  */
-export function Constellation({
-  goals,
-  lit,
-  brightest,
-  onChange,
-}: {
-  goals: Goal[];
-  lit: string[];
-  brightest: string | null;
-  onChange: (lit: string[], brightest: string | null) => void;
-}) {
-  const [size, setSize] = useState({ width: 0, height: 0 });
-  const { width, height } = size;
-  // Stars spread over the whole space they're given; the bottom margin leaves room for the last label.
-  const point = (i: number) => ({
-    x: Math.min(width - LABEL / 2, Math.max(LABEL / 2, PLACES[i].x * width)),
-    y: PLACES[i].y * (height - STAR - 56) + STAR / 2,
+export function Constellation({ goals, brightest }: { goals: { id: string; label: string }[]; brightest: string | null }) {
+  const [width, setWidth] = useState(0);
+  // A few goals make a small constellation; more need more sky.
+  const height = goals.length <= 2 ? 130 : goals.length <= 4 ? 180 : 220;
+  const ordered = [...goals].sort((a, b) => (a.id === brightest ? -1 : b.id === brightest ? 1 : 0)).slice(0, PLACES.length);
+  const at = (i: number) => ({
+    x: PLACES[i].x * width,
+    y: 18 + PLACES[i].y * (height - 60),
   });
 
-  const press = (id: string) => {
-    if (!lit.includes(id)) return onChange([...lit, id], brightest);
-    if (brightest !== id) return onChange(lit, id);
-    onChange(
-      lit.filter((g) => g !== id),
-      null,
-    );
-  };
-
-  const order = lit.map((id) => goals.findIndex((g) => g.id === id)).filter((i) => i >= 0);
-
   return (
-    <View onLayout={(e) => setSize({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })} className="flex-1">
+    <View
+      accessible
+      accessibilityLabel={`Your goals: ${ordered.map((g) => g.label).join(', ')}`}
+      onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+      style={{ height }}>
       {width ? (
         <>
-          <Svg width={width} height={height} style={{ position: 'absolute' }} accessible={false}>
-            {order.slice(1).map((goalIndex, i) => {
-              const a = point(order[i]);
-              const b = point(goalIndex);
-              return <Line key={`${order[i]}-${goalIndex}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#fdce3e" strokeOpacity={0.45} strokeWidth={2} strokeDasharray="2 6" strokeLinecap="round" />;
+          <Svg width={width} height={height} style={{ position: 'absolute' }}>
+            {ordered.slice(1).map((g, i) => {
+              const a = at(0);
+              const b = at(i + 1);
+              return (
+                <Line
+                  key={g.id}
+                  x1={a.x}
+                  y1={a.y}
+                  x2={b.x}
+                  y2={b.y}
+                  stroke={fixed.moon}
+                  strokeOpacity={0.4}
+                  strokeWidth={1.5}
+                  strokeDasharray="2 6"
+                  strokeLinecap="round"
+                />
+              );
+            })}
+            {ordered.map((g, i) => {
+              const p = at(i);
+              return (
+                <G key={g.id}>
+                  {i === 0 && brightest ? <Circle cx={p.x} cy={p.y} r={20} fill={night.moonSoft} /> : null}
+                  <Polygon points={starPoints(p.x, p.y, i === 0 && brightest ? 14 : 10)} fill={fixed.moon} />
+                </G>
+              );
             })}
           </Svg>
-          {goals.map((goal, i) => {
-            const p = point(i);
+          {ordered.map((g, i) => {
+            const p = at(i);
             return (
-              <Star
-                key={goal.id}
-                goal={goal}
-                lit={lit.includes(goal.id)}
-                brightest={brightest === goal.id}
-                left={p.x}
-                top={p.y}
-                onPress={() => press(goal.id)}
-              />
+              <Text
+                key={g.id}
+                numberOfLines={2}
+                style={{
+                  position: 'absolute',
+                  left: Math.min(width - 120, Math.max(0, p.x - 60)),
+                  top: p.y + 18,
+                  width: 120,
+                }}
+                className={`text-center text-caption ${i === 0 && brightest ? 'font-heading text-ink' : 'font-medium text-ink-muted'}`}>
+                {g.label}
+              </Text>
             );
           })}
         </>

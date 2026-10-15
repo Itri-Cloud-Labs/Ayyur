@@ -57,6 +57,7 @@ Then open the app in Expo Go, or press `a` for Android or `i` for iOS.
 | --- | --- |
 | `npm start` | Start the dev server |
 | `npm run dev` | Start the dev server through a tunnel, for Expo Go on another network |
+| `npm run dev:fast` | The same, with production JavaScript: no dev checks, so it runs at real speed. Use it to judge performance |
 | `npm run android` / `npm run ios` | Start and open on a device or emulator |
 | `npm run web` | Start and open in a browser |
 | `npm run lint` | Lint with ESLint |

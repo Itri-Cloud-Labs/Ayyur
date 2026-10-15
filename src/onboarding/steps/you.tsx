@@ -1,22 +1,20 @@
-import { useEffect, useRef, useState } from 'react';
-import { type TextInput, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Pressable, Text, View } from 'react-native';
 
-import { Button } from '@/components/button';
+import { tapHaptic } from '@/lib/haptics';
 
 import { intentions, practiceOptions } from '../data';
 import { useFlow } from '../flow';
-import { StepLayout } from '../shell';
+import { StepFooter, StepLayout } from '../shell';
 import type { Background, Gender, Practice } from '../types';
-import { Constellation } from '../ui/constellation';
 import { Field } from '../ui/controls';
-import { OptionList } from '../ui/options';
+import { Chips, OptionList } from '../ui/options';
 import { Tile } from '../ui/tile';
-import { YearDial } from '../ui/year-dial';
+import { validYear, YearEntry } from '../ui/year-entry';
 import { useAutoAdvance } from './shared';
 
 export function Name() {
   const { answers, set, next } = useFlow();
-  const input = useRef<TextInput>(null);
   const trimmed = answers.name.trim();
   // His reply waits for a pause in typing, so the line doesn't flicker with every letter.
   const [heard, setHeard] = useState(trimmed);
@@ -30,21 +28,19 @@ export function Name() {
       cue={{
         expression: heard ? 'delighted' : 'listening',
         say: heard ? `Nice to meet you, ${heard}!` : 'What should I call you?',
-        hint: 'Just what you’d like me to call you. It stays on this phone.',
-      }}
-      footer={<Button label="Continue" onPress={next} disabled={!trimmed} />}>
+        hint: 'A first name or a nickname.',
+      }}>
       <Field
-        ref={input}
         autoFocus
         value={answers.name}
         onChangeText={(name) => set({ name })}
-        placeholder="First name or nickname"
+        placeholder="Your name"
         accessibilityLabel="Your name"
         autoCapitalize="words"
         autoComplete="given-name"
         returnKeyType="next"
         maxLength={40}
-        onSubmitEditing={() => trimmed && next()}
+        onSubmitEditing={next}
       />
     </StepLayout>
   );
@@ -52,100 +48,87 @@ export function Name() {
 
 export function BirthYear() {
   const { answers, set, next } = useFlow();
+  const [text, setText] = useState(answers.birthYear ? String(answers.birthYear) : '');
   const age = answers.birthYear ? new Date().getFullYear() - answers.birthYear : null;
   return (
     <StepLayout
-      fill={300}
       cue={{
-        expression: answers.birthYear ? 'happy' : 'curious',
+        expression: age !== null ? 'happy' : 'curious',
         say: age !== null ? `So you’re about ${age}.` : 'What year were you born?',
-        hint: 'I use it to speak to you in the right way. I never show it to anyone.',
-      }}
-      footer={<Button label="Continue" onPress={next} disabled={!answers.birthYear} />}>
-      <YearDial value={answers.birthYear} onChange={(birthYear) => set({ birthYear })} />
+        hint: 'It helps me speak to you in the right way.',
+      }}>
+      <YearEntry
+        text={text}
+        onChangeText={(t) => {
+          setText(t);
+          set({ birthYear: validYear(t) ? Number(t) : null });
+        }}
+        onSubmit={() => validYear(text) && next()}
+      />
     </StepLayout>
   );
 }
+
+const CONSEQUENCE: Record<Gender, string> = {
+  male: 'Jumu’ah reminders on, and you can track praying in congregation.',
+  female: 'Jumu’ah reminders are up to you, and you can mark days when prayer isn’t due.',
+};
 
 export function GenderStep() {
   const { answers, set } = useFlow();
   const advance = useAutoAdvance();
   const choose = (gender: Gender) => {
-    set({ gender, jumuah: null });
+    set({
+      gender,
+      jumuah: null,
+      congregation: gender === 'male' ? answers.congregation : null,
+    });
     advance();
   };
   return (
     <StepLayout
-      fill={280}
       cue={{
         expression: answers.gender ? 'happy' : 'curious',
         say: 'Are you a brother or a sister?',
-        hint: 'It changes a few things in how I set up your prayers.',
+        hint: answers.gender ? CONSEQUENCE[answers.gender] : 'It changes a few things in how I set up prayer.',
       }}>
-      <View accessibilityRole="radiogroup" className="flex-1 gap-3">
-        <Tile
-          role="radio"
-          title="Brother"
-          detail="Jumu’ah reminders on, and the option to track praying in congregation."
-          selected={answers.gender === 'male'}
-          onPress={() => choose('male')}
-        />
-        <Tile
-          role="radio"
-          title="Sister"
-          detail="Jumu’ah reminders are up to you, and you can mark days when prayer isn’t due."
-          selected={answers.gender === 'female'}
-          onPress={() => choose('female')}
-        />
+      <View accessibilityRole="radiogroup" className="flex-row gap-3">
+        <Tile centred role="radio" title="Brother" selected={answers.gender === 'male'} onPress={() => choose('male')} />
+        <Tile centred role="radio" title="Sister" selected={answers.gender === 'female'} onPress={() => choose('female')} />
       </View>
-    </StepLayout>
-  );
-}
-
-export function BackgroundStep() {
-  const { answers, set } = useFlow();
-  const advance = useAutoAdvance(1300);
-  return (
-    <StepLayout
-      cue={{
-        expression: answers.background ? 'gentle' : 'listening',
-        say: answers.background ? 'Thank you for telling me.' : 'Were you born Muslim, or did you embrace Islam later?',
-        hint: 'Either way, it doesn’t tell me what you know. It only helps me choose my words.',
-      }}>
-      <OptionList<Background>
-        value={answers.background}
-        onChange={(background) => {
-          set({ background });
-          advance();
-        }}
-        options={[
-          { id: 'born', label: 'Born Muslim' },
-          { id: 'embraced', label: 'I embraced Islam later' },
-          { id: 'private', label: 'I’d rather not say' },
-        ]}
-      />
     </StepLayout>
   );
 }
 
 export function PracticeStep() {
   const { answers, set } = useFlow();
-  const advance = useAutoAdvance(1800);
   const chosen = practiceOptions.find((o) => o.id === answers.practice);
   return (
     <StepLayout
       cue={{
         expression: chosen ? 'happy' : 'listening',
-        say: chosen ? chosen.reply : 'How do daily prayers and practices feel right now?',
-        hint: 'There’s no wrong answer, and it isn’t a test. It helps me pick a starting point.',
+        say: chosen ? chosen.reply : 'Where are you with your practice right now?',
+        hint: chosen ? undefined : 'It helps me suggest a starting point. There’s no wrong answer.',
       }}>
       <OptionList<Practice>
         value={answers.practice}
-        onChange={(practice) => {
-          set({ practice });
-          advance();
-        }}
+        onChange={(practice) => set({ practice })}
         options={practiceOptions.map(({ id, label }) => ({ id, label }))}
+      />
+      <Text className="mb-3 mt-7 text-center font-heading text-title text-ink">Were you born Muslim, or did you embrace Islam later?</Text>
+      <Text className="mb-4 text-center font-body text-label text-ink-muted">
+        Optional. It doesn’t tell me what you know; it only helps me choose my words.
+      </Text>
+      <Chips<Background>
+        single
+        label="Background"
+        value={answers.background ? [answers.background] : []}
+        onChange={([background]) => set({ background })}
+        options={[
+          { id: 'born', label: 'Born Muslim' },
+          { id: 'embraced', label: 'Embraced Islam later' },
+          { id: 'private', label: 'Rather not say' },
+        ]}
       />
     </StepLayout>
   );
@@ -153,27 +136,55 @@ export function PracticeStep() {
 
 export function Goals() {
   const { answers, set, next } = useFlow();
-  const top = intentions.find((g) => g.id === answers.topIntention);
-  const any = answers.intentions.length > 0;
+  const lit = intentions.filter((g) => answers.intentions.includes(g.id));
+  const top = lit.find((g) => g.id === answers.topIntention);
+
+  const change = (ids: string[]) => {
+    // One goal is its own brightest; a removed goal can't stay the brightest.
+    const keep = answers.topIntention && ids.includes(answers.topIntention) ? answers.topIntention : null;
+    set({
+      intentions: ids,
+      topIntention: ids.length === 1 ? ids[0] : keep,
+      exploring: false,
+    });
+  };
+
   return (
     <StepLayout
-      fill={480}
       cue={{
-        expression: top ? 'delighted' : any ? 'happy' : 'curious',
+        expression: top ? 'delighted' : lit.length ? 'happy' : 'curious',
         say: 'What would you like my help with?',
-        hint: top
-          ? `Your brightest star: ${top.label.toLowerCase()}.`
-          : any
-            ? 'Tap a lit star again to make it your brightest.'
-            : 'Tap the stars that matter to you. Pick as many as you like.',
+        hint: 'Pick as many as you like.',
       }}
-      footer={<Button label="Continue" onPress={next} />}>
-      <Constellation
-        goals={intentions}
-        lit={answers.intentions}
-        brightest={answers.topIntention}
-        onChange={(lit, brightest) => set({ intentions: lit, topIntention: brightest })}
-      />
+      footer={
+        <StepFooter
+          extra={
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                tapHaptic();
+                set({ intentions: [], topIntention: null, exploring: true });
+                next();
+              }}
+              className="min-h-[44px] items-center justify-center active:opacity-70">
+              <Text className="font-medium text-label text-ink-muted">I’m just exploring for now</Text>
+            </Pressable>
+          }
+        />
+      }>
+      <Chips value={answers.intentions} onChange={change} options={intentions} />
+      {lit.length > 1 ? (
+        <View className="mt-7">
+          <Text className="mb-3 text-center font-heading text-title text-ink">Which one matters most?</Text>
+          <Chips
+            single
+            label="Most important goal"
+            value={answers.topIntention ? [answers.topIntention] : []}
+            onChange={([topIntention]) => set({ topIntention })}
+            options={lit}
+          />
+        </View>
+      ) : null}
     </StepLayout>
   );
 }

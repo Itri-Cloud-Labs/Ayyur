@@ -21,6 +21,8 @@ type LiveAyyurProps = {
   float?: boolean;
   onPress?: () => void;
   accessibilityLabel?: string;
+  /** Hide him from screen readers, for screens where he is decoration around the question. */
+  decorative?: boolean;
 };
 
 const EASE_OUT = Easing.bezier(0.25, 1, 0.5, 1);
@@ -30,7 +32,7 @@ const EASE_IN_OUT = Easing.inOut(Easing.sin);
  * Ayyur, alive: he blinks on a loose rhythm, hovers, tilts his head, glances, and changes expression
  * with a short crossfade and a small lift. With reduced motion he holds still and only his face changes.
  */
-export function LiveAyyur({ expression, size, look = 0, float = true, onPress, accessibilityLabel }: LiveAyyurProps) {
+export function LiveAyyur({ expression, size, look = 0, float = true, onPress, accessibilityLabel, decorative = false }: LiveAyyurProps) {
   const reduceMotion = useReducedMotion();
 
   // The outgoing face fades under the incoming one.
@@ -70,11 +72,14 @@ export function LiveAyyur({ expression, size, look = 0, float = true, onPress, a
   useEffect(() => {
     if (!canBlink) return;
     const schedule = () => {
-      timer.current = setTimeout(() => {
-        const close = withSequence(withTiming(0.08, { duration: 70 }), withTiming(1, { duration: 120 }));
-        lid.value = Math.random() < 0.2 ? withSequence(close, withTiming(1, { duration: 90 }), close) : close;
-        schedule();
-      }, 2400 + Math.random() * 3200);
+      timer.current = setTimeout(
+        () => {
+          const close = withSequence(withTiming(0.08, { duration: 70 }), withTiming(1, { duration: 120 }));
+          lid.value = Math.random() < 0.2 ? withSequence(close, withTiming(1, { duration: 90 }), close) : close;
+          schedule();
+        },
+        2400 + Math.random() * 3200,
+      );
     };
     schedule();
     return () => clearTimeout(timer.current);
@@ -112,6 +117,9 @@ export function LiveAyyur({ expression, size, look = 0, float = true, onPress, a
     <Pressable
       onPress={onPress}
       disabled={!onPress}
+      accessible={!decorative}
+      accessibilityElementsHidden={decorative}
+      importantForAccessibility={decorative ? 'no-hide-descendants' : 'auto'}
       accessibilityRole={onPress ? 'button' : 'image'}
       accessibilityLabel={accessibilityLabel ?? 'Ayyur, a smiling moon'}
       style={frame}>

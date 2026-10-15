@@ -8,7 +8,8 @@ export type Background = 'born' | 'embraced' | 'private';
 export type Practice = 'new' | 'starting' | 'returning' | 'unsteady' | 'steady';
 export type Madhhab = 'hanafi' | 'maliki' | 'shafii' | 'hanbali' | 'none';
 export type Asr = 'standard' | 'hanafi';
-export type Permission = 'unasked' | 'granted' | 'denied';
+/** `later` means the user chose "Not now": don't ask again during onboarding. */
+export type Permission = 'unasked' | 'granted' | 'denied' | 'later';
 export type ReminderWhen = 'at' | 'before' | 'both' | 'none';
 export type ReminderSound = 'adhan' | 'chime' | 'silent';
 export type QuranReading = 'letters' | 'slowly' | 'comfortable' | 'translation';
@@ -30,6 +31,10 @@ export type Answers = {
   practice: Practice | null;
   intentions: string[];
   topIntention: string | null;
+  /** Chose "just exploring" instead of picking goals. */
+  exploring: boolean;
+  /** Sections the user asked to set up from the summary although their goals left them out. */
+  optIn: ('quran' | 'fasting' | 'habits')[];
 
   locationPermission: Permission;
   city: City | null;
@@ -87,6 +92,8 @@ export const initialAnswers: Answers = {
   practice: null,
   intentions: [],
   topIntention: null,
+  exploring: false,
+  optIn: [],
   locationPermission: 'unasked',
   city: null,
   cityFrom: null,

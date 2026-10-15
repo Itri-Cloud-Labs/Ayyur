@@ -246,11 +246,14 @@ Thick, friendly, obviously pressable.
 - **Selected:** the module's `soft` tint as fill, its `text` shade for label and icon. Selection also shows a check icon, never colour alone.
 
 ### Choices
-- **Option rows** (`OptionList`): rows at least 72px tall on Night Surface with a 2px transparent outline, labels in Title type. Selected rows take the module's `soft` fill and full-colour outline, and the mark on the right fills with a Night check: a round mark for one answer, a rounded square for several.
-- **Segmented control:** a Night Surface track holding equal pills at least 60px tall, labels in Body type; the selected pill is the module's bright fill with Night text. For small ordered sets only (when, how loud).
-- **Tiles:** two large choices stacked, for the few moments where two or three paths carry equal weight (account or local, device location or city search, brother or sister). They grow to share the height they are given; titles in Display-weight Headline type. Night Surface with a Night Line outline; selected like option rows.
-- **Switch rows:** the whole row is the switch, at least 76px tall with a Title-type title. With a long explanation, the stacked layout puts title and switch on one line and the explanation below at full width. Track 52 by 32px, Night Raised off and module colour on, with a Night thumb.
-- **Steppers:** 48px round minus and plus buttons on Night Raised around a value in Display or Title type; one adjustable control for screen readers.
+Every pressable choice is **raised**: Night Raised on a 2px Night Line outline with a 6px lip along the bottom that it sinks onto while held (`Lipped`). Static surfaces never get a lip.
+- **Selection** outside a module is neutral: Starlight outline, Mist lip and a Starlight mark with a Night check. Inside a module the outline, lip and mark take the module colour. Gold is never a selection colour; it belongs to Ayyur and the primary action.
+- **Option rows** (`OptionList`): at least 68px, Title-type labels, a round mark for one answer and a rounded square for several.
+- **Chips:** raised pills at least 52px with Body-type labels; also used for single choices from short lists.
+- **Tiles:** two large raised choices side by side, sized by their content (never stretched), for the few moments where two paths carry equal weight.
+- **Segmented control:** a Night Surface track with equal options at least 56px tall; the selected option takes the module's fill (Starlight outside a module) with Night text.
+- **Switch rows:** the whole row is the switch; an off track is an outlined Night Surface pill. With a long explanation, the stacked layout puts title and switch on one line and the explanation below at full width.
+- **Steppers:** 48px round buttons around a value; holding a button keeps stepping.
 
 ### Cards / Containers
 Used rarely. Lists are plain rows on the canvas.
@@ -294,7 +297,16 @@ A flat gold moon with craters, two eyes and a mouth. Twelve expressions ship in 
 - **Tapping him** gets a reaction (wink, delighted, surprised); many taps in a row make him playfully tired. Never a sad or disappointed face, whatever the user answers.
 
 ### Onboarding
-Onboarding is one night sky and always renders in the night theme (`NightScope`), whatever the system setting, because the whole flow is a single scene. Ayyur hosts every step from the top, speaking the question himself, with any explanation centred under it in the same block. He takes whatever height the answers leave, from 88 to 150px. Steps with a few large choices (tiles, the year wheel, the constellation) stretch to fill the screen; lists and chips keep their size and sit in the middle of the remaining space; a small moon in the header waxes from new to full as the user goes, and stars come out one by one in the sky behind. The large pose (welcome, completion) adds the flat halo of Night Surface and Night Raised discs. The one celebration is at the end: stars burst out around him, then he drops into the tab bar as Home appears.
+Onboarding is one night sky and always renders in the night theme (`NightScope`). Each screen is one of five beats with its own fixed layout, so screens differ in shape and nothing is sized by measuring content:
+- **Stage** (welcome, ending): Ayyur large in his flat halo, a few words under him.
+- **Talk** (name, birth year, gender, location, note): Ayyur big, the question under him, the answer docked by the thumb above the button.
+- **Pick** (lists and chips): Ayyur small; the list starts right under the question, and a hairline appears under the question once it scrolls.
+- **Tool** (prayer focus): Ayyur leaves the top and sits on the day arc, on the prayer you choose.
+- **Calm** (privacy): Ayyur small and still.
+
+The question and its reason are one centred block, at most 360px wide. Ayyur's reactions (to taps) appear as a small line under it, never in place of it. Small badges beside him (pin, bell, lock) mark what a screen is about. Progress is a small moon in the header that waxes by part and never wanes; stars come out with it, kept to the top corners and outer edges so none sit beside text.
+
+The footer has one rule: optional steps always show an enabled button ("Skip for now" until something is chosen, then "Continue"), and skipping never erases an answer. Required steps keep Continue disabled with the reason under it. Inside a module the button takes the module colour. Only the two-way tiles move on by themselves, and never while a screen reader is running.
 
 ### Motifs
 - **Khatam star** (eight points): sparkles around the mascot, badge frames, list bullets in celebration screens.

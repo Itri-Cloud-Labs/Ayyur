@@ -1,8 +1,14 @@
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated from 'react-native-reanimated';
+
+import { useSink } from '@/components/sink';
 
 import { tapHaptic } from '@/lib/haptics';
 import { ON_COLOR, useThemeColors } from '@/theme/colors';
 import { TONES, type Tone } from '@/theme/tones';
+
+// The lip's height, matching the `lip` spacing token.
+const LIP = 4;
 
 type ButtonProps = {
   label: string;
@@ -27,10 +33,11 @@ export function Button({
   accessibilityHint,
 }: ButtonProps) {
   const colors = useThemeColors();
-  const { fill, lip } = TONES[tone];
+  const { fill, lipFill } = TONES[tone];
   const primary = variant === 'primary';
   const face = disabled ? 'bg-raised' : primary ? fill : 'bg-raised';
-  const edge = primary ? lip : 'border-line';
+  const edge = primary ? lipFill : 'bg-line';
+  const sink = useSink(LIP);
   const labelColour = disabled ? 'text-ink-subtle' : primary ? 'text-on-color' : 'text-ink';
 
   return (
@@ -40,24 +47,31 @@ export function Button({
       accessibilityHint={accessibilityHint}
       accessibilityState={{ disabled, busy: loading }}
       disabled={disabled || loading}
+      {...sink.handlers}
       onPress={() => {
         tapHaptic();
         onPress();
       }}>
-      {({ pressed }) => (
-        // The face keeps its height and the lip trades places with a top margin, so nothing below moves.
-        // Disabled buttons have no lip: only pressable things get one.
-        <View
-          className={`items-center justify-center rounded-control px-6 py-3 ${face} ${
-            pressed || disabled ? 'mt-1 min-h-[56px]' : `min-h-[60px] border-b-lip ${edge}`
-          }`}>
-          {loading ? (
-            <ActivityIndicator color={primary ? ON_COLOR : colors.ink} />
-          ) : (
-            <Text className={`text-center font-heading text-title ${labelColour}`}>{label}</Text>
-          )}
-        </View>
-      )}
+      {/* The lip is its own layer and the face sinks onto it on the UI thread, so a press shows at once.
+          Disabled buttons have no lip and sit where a pressed one would: only pressable things get one. */}
+      <View>
+        {disabled ? null : <View style={styles.lip} className={`rounded-control ${edge}`} />}
+        <Animated.View style={disabled ? styles.flat : [styles.face, sink.style]}>
+          <View className={`min-h-[56px] items-center justify-center rounded-control px-6 py-3 ${face}`}>
+            {loading ? (
+              <ActivityIndicator color={primary ? ON_COLOR : colors.ink} />
+            ) : (
+              <Text className={`text-center font-heading text-title ${labelColour}`}>{label}</Text>
+            )}
+          </View>
+        </Animated.View>
+      </View>
     </Pressable>
   );
 }
+
+const styles = StyleSheet.create({
+  lip: { position: 'absolute', left: 0, right: 0, top: LIP, bottom: 0 },
+  face: { marginBottom: LIP },
+  flat: { marginTop: LIP },
+});

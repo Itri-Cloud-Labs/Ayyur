@@ -5,7 +5,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NightScope } from '@/theme/night-scope';
 
 /** A sheet from the bottom edge. Tapping outside closes it. */
-export function Sheet({ visible, onClose, children, label }: { visible: boolean; onClose: () => void; children: ReactNode; label: string }) {
+export function Sheet({
+  visible,
+  onClose,
+  children,
+  label,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  children: ReactNode;
+  label: string;
+}) {
   const { bottom } = useSafeAreaInsets();
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
@@ -35,14 +45,17 @@ export function SimulatedPrompt({
   title,
   body,
   actions,
+  onDismiss,
 }: {
   visible: boolean;
   title: string;
   body: string;
   actions: { label: string; onPress: () => void; strong?: boolean }[];
+  /** Android back, treated like declining. */
+  onDismiss: () => void;
 }) {
   return (
-    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
+    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onDismiss}>
       <NightScope>
         <View className="flex-1 items-center justify-center bg-night/70 px-10">
           <Text className="mb-3 font-medium text-caption text-ink-muted">Preview of your phone’s prompt</Text>
@@ -57,9 +70,7 @@ export function SimulatedPrompt({
                 accessibilityRole="button"
                 onPress={action.onPress}
                 className="min-h-[48px] items-center justify-center border-t border-line px-4 py-3 active:bg-line">
-                <Text className={`text-center text-body text-prayer-text ${action.strong ? 'font-heading' : 'font-medium'}`}>
-                  {action.label}
-                </Text>
+                <Text className={`text-center text-body text-ink ${action.strong ? 'font-heading' : 'font-medium'}`}>{action.label}</Text>
               </Pressable>
             ))}
           </View>

@@ -1,6 +1,6 @@
 import { MinusIcon } from 'phosphor-react-native/src/icons/Minus';
 import { PlusIcon } from 'phosphor-react-native/src/icons/Plus';
-import { forwardRef, useEffect, useState } from 'react';
+import { forwardRef, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, type TextInputProps, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 
@@ -15,7 +15,7 @@ export function SwitchRow({
   value,
   onChange,
   disabled = false,
-  tone = 'moon',
+  tone = 'neutral',
   icon,
   stacked = false,
 }: {
@@ -32,11 +32,17 @@ export function SwitchRow({
   const reduceMotion = useReducedMotion();
   const on = useSharedValue(value ? 1 : 0);
   useEffect(() => {
-    on.value = withTiming(value ? 1 : 0, { duration: reduceMotion ? 0 : 180, easing: Easing.bezier(0.25, 1, 0.5, 1) });
+    on.value = withTiming(value ? 1 : 0, {
+      duration: reduceMotion ? 0 : 180,
+      easing: Easing.bezier(0.25, 1, 0.5, 1),
+    });
   }, [on, reduceMotion, value]);
-  const thumb = useAnimatedStyle(() => ({ transform: [{ translateX: on.value * 20 }] }));
+  const thumb = useAnimatedStyle(() => ({
+    transform: [{ translateX: on.value * 20 }],
+  }));
   const track = (
-    <View className={`h-8 w-[52px] justify-center rounded-full px-1 ${value ? TONES[tone].fill : 'bg-raised'}`}>
+    <View
+      className={`h-8 w-[52px] justify-center rounded-full border-2 px-0.5 ${value ? `${TONES[tone].fill} border-transparent` : 'border-ink-subtle bg-surface'}`}>
       <Animated.View style={thumb}>
         <View className={`h-6 w-6 rounded-full ${value ? 'bg-on-color' : 'bg-ink-subtle'}`} />
       </Animated.View>
@@ -97,18 +103,22 @@ export function Stepper({
     tapHaptic();
     onStep(direction);
   };
+  // Holding a button keeps stepping, so long distances don't take a dozen taps.
+  const repeat = useRef<ReturnType<typeof setInterval>>(undefined);
+  useEffect(() => () => clearInterval(repeat.current), []);
   const button = (direction: 1 | -1) => (
     <Pressable
       accessible={false}
       importantForAccessibility="no"
       onPress={() => step(direction)}
+      onLongPress={() => {
+        clearInterval(repeat.current);
+        repeat.current = setInterval(() => onStep(direction), 110);
+      }}
+      onPressOut={() => clearInterval(repeat.current)}
       hitSlop={4}
       className="h-12 w-12 items-center justify-center rounded-full bg-raised active:opacity-70">
-      {direction === 1 ? (
-        <PlusIcon size={20} weight="bold" color={colors.ink} />
-      ) : (
-        <MinusIcon size={20} weight="bold" color={colors.ink} />
-      )}
+      {direction === 1 ? <PlusIcon size={20} weight="bold" color={colors.ink} /> : <MinusIcon size={20} weight="bold" color={colors.ink} />}
     </Pressable>
   );
 
@@ -131,10 +141,15 @@ export function Stepper({
 }
 
 /** The text field from DESIGN.md: Night Surface, 2px outline that takes the accent colour on focus. */
-export const Field = forwardRef<TextInput, TextInputProps & { label?: string; tone?: Tone; tall?: boolean }>(function Field(
-  { label, tone = 'moon', tall = false, style, onFocus, onBlur, ...props },
-  ref,
-) {
+export const Field = forwardRef<
+  TextInput,
+  TextInputProps & {
+    label?: string;
+    tone?: Tone;
+    tall?: boolean;
+    large?: boolean;
+  }
+>(function Field({ label, tone = 'neutral', tall = false, large = false, style, onFocus, onBlur, ...props }, ref) {
   const colors = useThemeColors();
   const [focused, setFocused] = useState(false);
 
@@ -153,7 +168,7 @@ export const Field = forwardRef<TextInput, TextInputProps & { label?: string; to
           setFocused(false);
           onBlur?.(e);
         }}
-        className={`rounded-control border-2 bg-surface px-5 font-medium text-title text-ink ${
+        className={`rounded-control border-2 bg-surface px-5 text-ink ${large ? 'font-display text-display' : 'font-body text-body'} ${
           focused ? TONES[tone].border : 'border-line'
         } ${tall ? 'min-h-[180px] py-4' : 'min-h-[64px] py-3'}`}
         style={[tall ? styles.tall : null, style]}

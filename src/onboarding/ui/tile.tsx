@@ -1,58 +1,58 @@
 import type { Icon } from 'phosphor-react-native';
-import type { ReactNode } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
-import { tapHaptic } from '@/lib/haptics';
 import { useThemeColors } from '@/theme/colors';
 import { TONES, type Tone } from '@/theme/tones';
 
+import { Lipped } from './press';
+
 /**
- * A large choice: for the few moments where two or three paths carry equal weight. Tiles grow to
- * share the height they're given, so a short step's answers fill the screen instead of floating.
+ * A large raised choice, for the few moments where two paths carry equal weight. Sized by its content
+ * (never stretched to fill), so text can't be clipped and the step scrolls if it must.
  */
 export function Tile({
   icon: TileIcon,
-  art,
   title,
   detail,
   onPress,
   selected = false,
-  tone = 'moon',
+  tone = 'neutral',
   role = 'button',
+  centred = false,
 }: {
   icon?: Icon;
-  /** Something drawn above the title instead of an icon. */
-  art?: ReactNode;
   title: string;
   detail?: string;
   onPress: () => void;
   selected?: boolean;
   tone?: Tone;
   role?: 'button' | 'radio';
+  /** Centred content, for short single-word choices side by side. */
+  centred?: boolean;
 }) {
   const colors = useThemeColors();
+  const disc = tone === 'neutral' ? 'bg-surface' : TONES[tone].soft;
+  const iconColour = tone === 'neutral' ? colors.ink : colors[TONES[tone].color];
   return (
-    <Pressable
+    <Lipped
+      shape="card"
+      selected={selected}
+      tone={tone}
+      outer="flex-1"
+      face={`min-h-[132px] gap-3 p-5 ${centred ? 'items-center justify-center' : 'justify-center'}`}
       accessibilityRole={role}
       accessibilityState={role === 'radio' ? { selected } : undefined}
       accessibilityLabel={detail ? `${title}. ${detail}` : title}
-      onPress={() => {
-        tapHaptic();
-        onPress();
-      }}
-      className={`flex-1 justify-center gap-4 rounded-card border-2 p-5 active:opacity-80 ${
-        selected ? `${TONES[tone].border} ${TONES[tone].soft}` : 'border-line bg-surface'
-      }`}>
-      {art}
+      onPress={onPress}>
       {TileIcon ? (
-        <View className={`h-14 w-14 items-center justify-center rounded-full ${TONES[tone].soft}`}>
-          <TileIcon size={28} weight="fill" color={colors[TONES[tone].color]} />
+        <View className={`h-12 w-12 items-center justify-center rounded-full ${disc}`}>
+          <TileIcon size={26} weight="fill" color={iconColour} />
         </View>
       ) : null}
-      <View className="gap-1.5">
-        <Text className="font-display text-headline text-ink">{title}</Text>
-        {detail ? <Text className="font-body text-body text-ink-muted">{detail}</Text> : null}
+      <View className={`gap-1 ${centred ? 'items-center' : ''}`}>
+        <Text className={`font-display text-ink ${centred ? 'text-headline' : 'text-title'}`}>{title}</Text>
+        {detail ? <Text className={`font-body text-label text-ink-muted ${centred ? 'text-center' : ''}`}>{detail}</Text> : null}
       </View>
-    </Pressable>
+    </Lipped>
   );
 }
