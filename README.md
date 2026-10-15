@@ -39,7 +39,7 @@ The moon is the mascot and the AI companion. It celebrates progress, and it stay
 
 - [Expo](https://expo.dev) SDK 57 and React Native 0.86, in TypeScript
 - [Expo Router](https://docs.expo.dev/router/introduction/) for navigation, with routes in `src/app/`
-- [NativeWind](https://www.nativewind.dev) 4 with Tailwind CSS 3 for styling
+- React Native `StyleSheet` for styling, with no styling library, so nothing resolves styles at runtime
 - Rubik for interface type and Phosphor Fill for icons
 
 Planned: SQLite on device as the source of truth, Clerk for optional sign-in, and Convex for encrypted sync.
@@ -57,6 +57,7 @@ Then open the app in Expo Go, or press `a` for Android or `i` for iOS.
 | --- | --- |
 | `npm start` | Start the dev server |
 | `npm run dev` | Start the dev server through a tunnel, for Expo Go on another network |
+| `npm run dev:fast` | The same, with production JavaScript: no dev checks, so it runs at real speed. Use it to judge performance |
 | `npm run android` / `npm run ios` | Start and open on a device or emulator |
 | `npm run web` | Start and open in a browser |
 | `npm run lint` | Lint with ESLint |
@@ -67,4 +68,4 @@ Then open the app in Expo Go, or press `a` for Android or `i` for iOS.
 
 - [`PRODUCT.md`](PRODUCT.md): who Ayyur is for, its personality and its principles.
 - [`DESIGN.md`](DESIGN.md): colours, type, components and the rules for using them.
-- Tokens live in `tailwind.config.js` and `global.css`. Brand assets live in `assets/brand/`.
+- Tokens live in `src/theme/`: colours in `palette.ts`, type, radii and the themed-stylesheet helper in `styles.ts`, and control colours in `tones.ts`. Brand assets live in `assets/brand/`.

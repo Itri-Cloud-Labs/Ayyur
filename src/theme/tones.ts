@@ -1,11 +1,25 @@
-// Class names for each colour that can own a control, written out in full so Tailwind finds them.
-// `color` is the matching key in useThemeColors(), for icons.
+import type { ColorName } from './colors';
+
+// The colours each tone gives a control, as names in useThemeColors(). Gold belongs to Ayyur and the
+// primary action, so selection outside a module is neutral (ink).
+const hue = <H extends 'moon' | 'prayer' | 'quran' | 'fasting' | 'habits' | 'tasks'>(h: H) =>
+  ({
+    fill: h,
+    lip: `${h}Deep`,
+    border: h,
+    soft: `${h}Soft`,
+    text: `${h}Text`,
+    lipSelected: `${h}Deep`,
+  }) as const satisfies Record<string, ColorName>;
+
 export const TONES = {
-  moon: { fill: 'bg-moon', lip: 'border-moon-deep', soft: 'bg-moon-soft', text: 'text-moon-text', color: 'moonText' },
-  prayer: { fill: 'bg-prayer', lip: 'border-prayer-deep', soft: 'bg-prayer-soft', text: 'text-prayer-text', color: 'prayerText' },
-  quran: { fill: 'bg-quran', lip: 'border-quran-deep', soft: 'bg-quran-soft', text: 'text-quran-text', color: 'quranText' },
-  habits: { fill: 'bg-habits', lip: 'border-habits-deep', soft: 'bg-habits-soft', text: 'text-habits-text', color: 'habitsText' },
-  tasks: { fill: 'bg-tasks', lip: 'border-tasks-deep', soft: 'bg-tasks-soft', text: 'text-tasks-text', color: 'tasksText' },
-} as const;
+  neutral: { fill: 'ink', lip: 'line', border: 'ink', soft: 'raised', text: 'ink', lipSelected: 'inkSubtle' },
+  moon: hue('moon'),
+  prayer: hue('prayer'),
+  quran: hue('quran'),
+  fasting: hue('fasting'),
+  habits: hue('habits'),
+  tasks: hue('tasks'),
+} as const satisfies Record<string, Record<'fill' | 'lip' | 'border' | 'soft' | 'text' | 'lipSelected', ColorName>>;
 
 export type Tone = keyof typeof TONES;

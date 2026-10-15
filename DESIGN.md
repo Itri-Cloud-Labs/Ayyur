@@ -242,8 +242,18 @@ Thick, friendly, obviously pressable.
 - Labels are verb plus object: "Log Fajr", "Freeze this fast", "Start reading".
 
 ### Chips
-- **Style:** full pill, Night Raised fill, Haze label in Label type, 6px by 12px padding.
+- **Style:** full pill, Night Raised fill, Haze label in Label type, 6px by 12px padding. In onboarding, chips are 56px tall with Body-type labels.
 - **Selected:** the module's `soft` tint as fill, its `text` shade for label and icon. Selection also shows a check icon, never colour alone.
+
+### Choices
+Every pressable choice is **raised**: Night Raised on a 2px Night Line outline with a 6px lip along the bottom that it sinks onto while held (`Lipped`). Static surfaces never get a lip.
+- **Selection** outside a module is neutral: Starlight outline, Mist lip and a Starlight mark with a Night check. Inside a module the outline, lip and mark take the module colour. Gold is never a selection colour; it belongs to Ayyur and the primary action.
+- **Option rows** (`OptionList`): at least 68px, Title-type labels, a round mark for one answer and a rounded square for several.
+- **Chips:** raised pills at least 52px with Body-type labels; also used for single choices from short lists.
+- **Tiles:** two large raised choices side by side, sized by their content (never stretched), for the few moments where two paths carry equal weight.
+- **Segmented control:** a Night Surface track with equal options at least 56px tall; the selected option takes the module's fill (Starlight outside a module) with Night text.
+- **Switch rows:** the whole row is the switch; an off track is an outlined Night Surface pill. With a long explanation, the stacked layout puts title and switch on one line and the explanation below at full width.
+- **Steppers:** 48px round buttons around a value; holding a button keeps stepping.
 
 ### Cards / Containers
 Used rarely. Lists are plain rows on the canvas.
@@ -278,11 +288,25 @@ The four occurrence states, each distinct in shape as well as colour.
 The streak symbol is the moon's phase, never a flame. Phase assets run from new to full in five steps (`assets/brand/phases`); the lit part is Moonlight Gold and the rest is Night Raised. A frozen day adds a dotted Frost ring around the moon. The Mega-Streak number sits beside it in Hero or Display type.
 
 ### Ayyur, the mascot
-A flat gold moon with craters, two eyes and a mouth. Nine expressions ship in `assets/brand/mascot`: happy, joyful, wink, gentle, sleepy, thinking, curious, caring and protected.
-- **Happy** is the default. **Joyful** is for milestones. **Thinking** shows while the companion is working. **Sleepy** marks quiet hours. **Protected** marks a freeze. **Gentle** and **caring** are for missed days and errors: soft, never sad.
+A flat gold moon with craters, two eyes and a mouth. Twelve expressions ship in `assets/brand/mascot`: happy, joyful, wink, gentle, sleepy, thinking, curious, caring, protected, listening, delighted and surprised.
+- **Happy** is the default. **Joyful** is for milestones. **Listening** waits for an answer, **delighted** reacts to one, **surprised** is a pleasant surprise, never alarm. **Thinking** shows while the companion is working. **Sleepy** marks quiet hours. **Protected** marks a freeze. **Gentle** and **caring** are for missed days and errors: soft, never sad.
 - Ayyur is the companion's avatar in chat and the active icon of the companion tab.
 - Ayyur never appears in the Quran reader, adhkar, or a prayer in progress.
 - Minimum size 40px. Below that, use the plain moon mark without stars.
+- **Live Ayyur** (`src/components/ayyur/live-ayyur.tsx`) stacks a faceless body with separate eye and mouth layers (`assets/brand/live`), so he blinks on an uneven rhythm, glances, tilts his head per expression, hovers, and crossfades between faces with a small lift. Use it wherever he is the host; use the flat PNGs for small or static places. With reduced motion he holds still and only his face changes.
+- **Tapping him** gets a reaction (wink, delighted, surprised); many taps in a row make him playfully tired. Never a sad or disappointed face, whatever the user answers.
+
+### Onboarding
+Onboarding is one night sky and always renders in the night theme (`NightScope`). Each screen is one of five beats with its own fixed layout, so screens differ in shape and nothing is sized by measuring content:
+- **Stage** (welcome, ending): Ayyur large in his flat halo, a few words under him.
+- **Talk** (name, birth year, gender, location, note): Ayyur big, the question under him, the answer docked by the thumb above the button.
+- **Pick** (lists and chips): Ayyur small; the list starts right under the question, and a hairline appears under the question once it scrolls.
+- **Tool** (prayer focus): Ayyur leaves the top and sits on the day arc, on the prayer you choose.
+- **Calm** (privacy): Ayyur small and still.
+
+The question and its reason are one centred block, at most 360px wide. Ayyur's reactions (to taps) appear as a small line under it, never in place of it. Small badges beside him (pin, bell, lock) mark what a screen is about. Progress is a small moon in the header that waxes by part and never wanes; stars come out with it, kept to the top corners and outer edges so none sit beside text.
+
+The footer has one rule: optional steps always show an enabled button ("Skip for now" until something is chosen, then "Continue"), and skipping never erases an answer. Required steps keep Continue disabled with the reason under it. Inside a module the button takes the module colour. Only the two-way tiles move on by themselves, and never while a screen reader is running.
 
 ### Motifs
 - **Khatam star** (eight points): sparkles around the mascot, badge frames, list bullets in celebration screens.

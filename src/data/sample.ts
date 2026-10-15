@@ -23,7 +23,8 @@ export const samplePrayers: Prayer[] = [
   { id: 'isha', name: 'Isha', start: at(20, 15), end: at(24, 0) },
 ];
 
-export const sampleLoggedPrayers: PrayerId[] = ['fajr'];
+/** A new install has logged nothing: the app never implies worship happened. */
+export const sampleLoggedPrayers: PrayerId[] = [];
 
 export type TodayItem = {
   id: string;
@@ -31,18 +32,7 @@ export type TodayItem = {
   title: string;
 };
 
-export const sampleTodayItems: TodayItem[] = [
-  { id: 'habit-adhkar', kind: 'habit', title: 'Morning adhkar' },
-  { id: 'habit-duha', kind: 'habit', title: "Two rak'ahs of Duha" },
-  { id: 'task-sadaqah', kind: 'task', title: 'Give sadaqah' },
-  { id: 'task-parents', kind: 'task', title: 'Call your parents' },
-];
-
-export const sampleDoneItems: string[] = ['habit-adhkar'];
-
-export const sampleReading = { surah: 'Al-Baqarah', ayah: 142 };
+export const sampleDoneItems: string[] = [];
 
 /** `phase` is 0 (new) to 4 (full). How a streak maps to a phase is not decided yet. */
-export const sampleStreak: { days: number; phase: 0 | 1 | 2 | 3 | 4 } = { days: 12, phase: 3 };
-
-export const sampleUser = { name: '[NAME]' };
+export const sampleStreak: { days: number; phase: 0 | 1 | 2 | 3 | 4 } = { days: 0, phase: 0 };

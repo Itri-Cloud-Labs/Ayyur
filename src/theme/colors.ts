@@ -1,27 +1,31 @@
+import { createContext, useContext } from 'react';
 import { useColorScheme } from 'react-native';
 
-// For props that need a colour value rather than a class, such as an icon's `color`.
-// These mirror the themed variables in global.css; add a token here only when a prop needs it.
-const night = {
-  inkSubtle: '#8f98af',
-  moonText: '#fdce3e',
-  prayerText: '#95c0ff',
-  quranText: '#5ee38b',
-  habitsText: '#d1a8ff',
-  tasksText: '#50dfe6',
-};
-const day: typeof night = {
-  inkSubtle: '#5b6378',
-  moonText: '#6c5500',
-  prayerText: '#24569f',
-  quranText: '#006a34',
-  habitsText: '#694191',
-  tasksText: '#006569',
-};
+import { day, fixed, night, type Palette } from './palette';
 
 /** Text placed on any bright fill. The same in both themes. */
-export const ON_COLOR = '#090e1f';
+export const ON_COLOR = fixed.onColor;
 
-export function useThemeColors() {
-  return useColorScheme() === 'dark' ? night : day;
+/** Every colour for one theme: its own shades plus the fills shared by both. */
+export type Colors = Palette & typeof fixed;
+export type ColorName = keyof Colors;
+
+// Two fixed objects, so a theme's colours keep one identity and styles built from them can be cached.
+const NIGHT: Colors = { ...night, ...fixed };
+const DAY: Colors = { ...day, ...fixed };
+
+/** Set by NightScope so the subtree uses the night theme whatever the system is set to. */
+export const SchemeOverride = createContext<'dark' | 'light' | null>(null);
+
+/** The current theme's colours. */
+export function useThemeColors(): Colors {
+  const system = useColorScheme();
+  const forced = useContext(SchemeOverride);
+  return (forced ?? system) === 'dark' ? NIGHT : DAY;
+}
+
+/** A hex colour at an opacity, for the few translucent fills. */
+export function withAlpha(hex: string, alpha: number) {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }

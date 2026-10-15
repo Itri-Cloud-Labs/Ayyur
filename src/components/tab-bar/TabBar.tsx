@@ -6,17 +6,11 @@ import { HouseIcon } from 'phosphor-react-native/src/icons/House';
 import { UserIcon } from 'phosphor-react-native/src/icons/User';
 import { useEffect, useState } from 'react';
 import { Image, Keyboard, type LayoutChangeEvent, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useReducedMotion,
-  useSharedValue,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
+import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 
 import { tapHaptic } from '@/lib/haptics';
 import { useThemeColors } from '@/theme/colors';
+import { radius, text, themedStyles } from '@/theme/styles';
 
 import { BAR_INSET, BAR_MIN_HEIGHT, MOON_RAISE, useTabBarHidden, useTabBarOffset } from './visibility';
 
@@ -75,7 +69,39 @@ type TabProps = {
   onLongPress: () => void;
 };
 
+const useStyles = themedStyles((c) => ({
+  tab: { flex: 1, alignItems: 'center', paddingBottom: 8, paddingTop: 10, minHeight: BAR_MIN_HEIGHT },
+  moonTab: { flex: 1, alignItems: 'center', paddingBottom: 8 },
+  pressed: { opacity: 0.7 },
+  iconWell: { height: 32, width: 56, alignItems: 'center', justifyContent: 'center' },
+  pill: { flex: 1, borderRadius: radius.full, backgroundColor: c.moonSoft },
+  label: { ...text('medium', 'caption', c.inkSubtle), marginTop: 2 },
+  labelOn: { ...text('heading', 'caption', c.moonText), marginTop: 2 },
+  lip: {
+    position: 'absolute',
+    left: 0,
+    top: LIP,
+    width: MOON_SIZE,
+    height: MOON_SIZE,
+    borderRadius: radius.full,
+    backgroundColor: c.moonDeep,
+  },
+  list: { pointerEvents: 'box-none', width: '100%', maxWidth: 480, flexDirection: 'row', alignItems: 'flex-end' },
+  plate: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    top: MOON_RAISE,
+    borderRadius: radius.sheet,
+    borderWidth: 1,
+    borderColor: c.line,
+    backgroundColor: c.surface,
+  },
+}));
+
 function Tab({ label, hint, focused, onPress, onLongPress, icon: Icon }: TabProps & { icon: Icon }) {
+  const s = useStyles();
   const colors = useThemeColors();
   const progress = useFocusProgress(focused);
 
@@ -92,20 +118,16 @@ function Tab({ label, hint, focused, onPress, onLongPress, icon: Icon }: TabProp
       accessibilityState={{ selected: focused }}
       onPress={onPress}
       onLongPress={onLongPress}
-      className="flex-1 items-center pb-2 pt-2.5 active:opacity-70"
-      style={{ minHeight: BAR_MIN_HEIGHT }}>
-      <View className="h-8 w-14 items-center justify-center">
+      style={({ pressed }) => [s.tab, pressed && s.pressed]}>
+      <View style={s.iconWell}>
         <Animated.View style={[StyleSheet.absoluteFill, pill]}>
-          <View className="flex-1 rounded-full bg-moon-soft" />
+          <View style={s.pill} />
         </Animated.View>
         <View>
           <Icon size={24} weight="fill" color={focused ? colors.moonText : colors.inkSubtle} />
         </View>
       </View>
-      <Text
-        numberOfLines={1}
-        maxFontSizeMultiplier={1.5}
-        className={`mt-0.5 text-caption ${focused ? 'font-heading text-moon-text' : 'font-medium text-ink-subtle'}`}>
+      <Text numberOfLines={1} maxFontSizeMultiplier={1.5} style={focused ? s.labelOn : s.label}>
         {label}
       </Text>
     </Pressable>
@@ -113,14 +135,13 @@ function Tab({ label, hint, focused, onPress, onLongPress, icon: Icon }: TabProp
 }
 
 function MoonTab({ label, hint, focused, onPress, onLongPress }: TabProps) {
+  const s = useStyles();
   const reduceMotion = useReducedMotion();
   const progress = useFocusProgress(focused);
   const pressed = useSharedValue(0);
 
   const press = (to: number) => {
-    pressed.value = reduceMotion
-      ? to
-      : withSpring(to, { stiffness: 600, damping: 40, mass: 0.6, overshootClamping: true });
+    pressed.value = reduceMotion ? to : withSpring(to, { stiffness: 600, damping: 40, mass: 0.6, overshootClamping: true });
   };
 
   // The moon sinks onto its lip while held, like every other raised control.
@@ -137,12 +158,9 @@ function MoonTab({ label, hint, focused, onPress, onLongPress }: TabProps) {
       onLongPress={onLongPress}
       onPressIn={() => press(1)}
       onPressOut={() => press(0)}
-      className="flex-1 items-center pb-2">
+      style={s.moonTab}>
       <View style={{ width: MOON_SIZE, height: MOON_SIZE + LIP }}>
-        <View
-          className="absolute left-0 rounded-full bg-moon-deep"
-          style={{ top: LIP, width: MOON_SIZE, height: MOON_SIZE }}
-        />
+        <View style={s.lip} />
         <Animated.View style={[{ width: MOON_SIZE, height: MOON_SIZE }, disc]}>
           <Image source={moonPlain} accessible={false} accessibilityIgnoresInvertColors style={styles.moon} />
           <Animated.View style={[StyleSheet.absoluteFill, face]}>
@@ -150,10 +168,7 @@ function MoonTab({ label, hint, focused, onPress, onLongPress }: TabProps) {
           </Animated.View>
         </Animated.View>
       </View>
-      <Text
-        numberOfLines={1}
-        maxFontSizeMultiplier={1.5}
-        className={`mt-0.5 text-caption ${focused ? 'font-heading text-moon-text' : 'font-medium text-ink-subtle'}`}>
+      <Text numberOfLines={1} maxFontSizeMultiplier={1.5} style={focused ? s.labelOn : s.label}>
         {label}
       </Text>
     </Pressable>
@@ -161,6 +176,7 @@ function MoonTab({ label, hint, focused, onPress, onLongPress }: TabProps) {
 }
 
 export function TabBar({ state, navigation }: BottomTabBarProps) {
+  const s = useStyles();
   const reduceMotion = useReducedMotion();
   const offset = useTabBarOffset();
   const keyboardOpen = useKeyboardOpen();
@@ -177,9 +193,7 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
 
   // Slides the bar past the bottom edge. With reduced motion it fades instead.
   const travel = height + offset;
-  const slide = useAnimatedStyle(() =>
-    reduceMotion ? { opacity: 1 - away.value } : { transform: [{ translateY: travel * away.value }] },
-  );
+  const slide = useAnimatedStyle(() => (reduceMotion ? { opacity: 1 - away.value } : { transform: [{ translateY: travel * away.value }] }));
 
   const onLayout = (event: LayoutChangeEvent) => setHeight(event.nativeEvent.layout.height);
 
@@ -189,8 +203,8 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
       accessibilityElementsHidden={hidden}
       importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}
       style={[styles.dock, { bottom: offset, pointerEvents: hidden ? 'none' : 'box-none' }, slide]}>
-      <View accessibilityRole="tablist" className="pointer-events-box-none w-full max-w-[480px] flex-row items-end">
-        <View className="absolute inset-x-0 bottom-0 rounded-sheet border border-line bg-surface" style={{ top: MOON_RAISE }} />
+      <View accessibilityRole="tablist" style={s.list}>
+        <View style={s.plate} />
         {state.routes.map((route, index) => {
           const tab = TABS[route.name];
           if (!tab) return null;
@@ -213,7 +227,6 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
   );
 }
 
-// Animated views take plain styles: class names are not applied to them.
 const styles = StyleSheet.create({
   dock: { position: 'absolute', left: 0, right: 0, alignItems: 'center', paddingHorizontal: BAR_INSET },
   moon: { width: MOON_SIZE, height: MOON_SIZE },

@@ -4,6 +4,7 @@
   "main": "expo-router/entry",
   "dependencies": {
     "@expo-google-fonts/rubik": "^0.4.2",
+    "@react-native-async-storage/async-storage": "2.2.0",
     "expo": "~57.0.28",
     "expo-constants": "~57.0.21",
     "expo-font": "~57.0.4",
@@ -12,7 +13,6 @@
     "expo-router": "~57.0.26",
     "expo-splash-screen": "~57.0.10",
     "expo-status-bar": "~57.0.1",
-    "nativewind": "^4.2.7",
     "phosphor-react-native": "^3.0.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
@@ -31,7 +31,6 @@
     "eslint": "^9.39.5",
     "eslint-config-expo": "^57.0.2",
     "sharp": "^0.35.5",
-    "tailwindcss": "^3.4.19",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -41,7 +40,8 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "brand": "node scripts/brand/generate.mjs",
-    "dev": "expo start --tunnel"
+    "dev": "expo start --tunnel",
+    "dev:fast": "expo start --tunnel --no-dev --minify"
   },
   "private": true
 }
