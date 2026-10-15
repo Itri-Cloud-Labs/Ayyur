@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 
-import { ON_COLOR } from '@/theme/colors';
+import { ON_COLOR, useThemeColors } from '@/theme/colors';
 import { TONES, type Tone } from '@/theme/tones';
 
 export type MarkState = 'done' | 'pending' | 'unrecorded';
@@ -15,6 +15,7 @@ const SIZE = 28;
  * a filled disc with a check, a solid ring, or a dashed ring for something left unrecorded.
  */
 export function StatusMark({ state, tone }: { state: MarkState; tone: Tone }) {
+  const c = useThemeColors();
   const reduceMotion = useReducedMotion();
   const done = state === 'done';
   const progress = useSharedValue(done ? 1 : 0);
@@ -33,13 +34,9 @@ export function StatusMark({ state, tone }: { state: MarkState; tone: Tone }) {
 
   return (
     <View style={styles.box}>
-      <View
-        className={`h-full w-full rounded-full border-2 ${
-          state === 'unrecorded' ? 'border-dashed border-ink-subtle' : 'border-line'
-        }`}
-      />
+      <View style={[styles.ring, state === 'unrecorded' ? [styles.dashed, { borderColor: c.inkSubtle }] : { borderColor: c.line }]} />
       <Animated.View style={[StyleSheet.absoluteFill, disc]}>
-        <View className={`flex-1 items-center justify-center rounded-full ${TONES[tone].fill}`}>
+        <View style={[styles.fill, { backgroundColor: c[TONES[tone].fill] }]}>
           <CheckIcon size={16} weight="bold" color={ON_COLOR} />
         </View>
       </Animated.View>
@@ -49,4 +46,7 @@ export function StatusMark({ state, tone }: { state: MarkState; tone: Tone }) {
 
 const styles = StyleSheet.create({
   box: { width: SIZE, height: SIZE },
+  ring: { width: '100%', height: '100%', borderRadius: SIZE / 2, borderWidth: 2 },
+  dashed: { borderStyle: 'dashed' },
+  fill: { flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: SIZE / 2 },
 });

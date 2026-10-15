@@ -2,13 +2,10 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import Animated from 'react-native-reanimated';
 
 import { useSink } from '@/components/sink';
-
 import { tapHaptic } from '@/lib/haptics';
 import { ON_COLOR, useThemeColors } from '@/theme/colors';
+import { font, LIP, radius, size } from '@/theme/styles';
 import { TONES, type Tone } from '@/theme/tones';
-
-// The lip's height, matching the `lip` spacing token.
-const LIP = 4;
 
 type ButtonProps = {
   label: string;
@@ -33,12 +30,12 @@ export function Button({
   accessibilityHint,
 }: ButtonProps) {
   const colors = useThemeColors();
-  const { fill, lipFill } = TONES[tone];
+  const { fill, lip } = TONES[tone];
   const primary = variant === 'primary';
-  const face = disabled ? 'bg-raised' : primary ? fill : 'bg-raised';
-  const edge = primary ? lipFill : 'bg-line';
+  const face = disabled || !primary ? colors.raised : colors[fill];
+  const edge = primary ? colors[lip] : colors.line;
   const sink = useSink(LIP);
-  const labelColour = disabled ? 'text-ink-subtle' : primary ? 'text-on-color' : 'text-ink';
+  const labelColour = disabled ? colors.inkSubtle : primary ? ON_COLOR : colors.ink;
 
   return (
     <Pressable
@@ -55,13 +52,13 @@ export function Button({
       {/* The lip is its own layer and the face sinks onto it on the UI thread, so a press shows at once.
           Disabled buttons have no lip and sit where a pressed one would: only pressable things get one. */}
       <View>
-        {disabled ? null : <View style={styles.lip} className={`rounded-control ${edge}`} />}
+        {disabled ? null : <View style={[styles.lip, { backgroundColor: edge }]} />}
         <Animated.View style={disabled ? styles.flat : [styles.face, sink.style]}>
-          <View className={`min-h-[56px] items-center justify-center rounded-control px-6 py-3 ${face}`}>
+          <View style={[styles.body, { backgroundColor: face }]}>
             {loading ? (
               <ActivityIndicator color={primary ? ON_COLOR : colors.ink} />
             ) : (
-              <Text className={`text-center font-heading text-title ${labelColour}`}>{label}</Text>
+              <Text style={[styles.label, { color: labelColour }]}>{label}</Text>
             )}
           </View>
         </Animated.View>
@@ -71,7 +68,16 @@ export function Button({
 }
 
 const styles = StyleSheet.create({
-  lip: { position: 'absolute', left: 0, right: 0, top: LIP, bottom: 0 },
+  lip: { position: 'absolute', left: 0, right: 0, top: LIP, bottom: 0, borderRadius: radius.control },
+  body: {
+    minHeight: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.control,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+  },
+  label: { textAlign: 'center', fontFamily: font.heading, ...size.title },
   face: { marginBottom: LIP },
   flat: { marginTop: LIP },
 });

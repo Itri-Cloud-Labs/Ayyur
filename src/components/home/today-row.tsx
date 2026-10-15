@@ -4,7 +4,18 @@ import { Pressable, Text, View } from 'react-native';
 
 import { StatusMark } from '@/components/status-mark';
 import { useThemeColors } from '@/theme/colors';
+import { radius, text, themedStyles } from '@/theme/styles';
 import { TONES, type Tone } from '@/theme/tones';
+
+const useStyles = themedStyles((c) => ({
+  row: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
+  pressed: { opacity: 0.7 },
+  disc: { height: 40, width: 40, alignItems: 'center', justifyContent: 'center', borderRadius: radius.full },
+  fill: { flex: 1 },
+  title: text('medium', 'body', c.ink),
+  titleDone: text('medium', 'body', c.inkMuted),
+  detail: text('medium', 'caption', c.inkSubtle),
+}));
 
 type TodayRowProps = {
   tone: Tone;
@@ -17,6 +28,7 @@ type TodayRowProps = {
 };
 
 export function TodayRow({ tone, icon: ModuleIcon, title, detail, onPress, done }: TodayRowProps) {
+  const s = useStyles();
   const colors = useThemeColors();
   const checkable = done !== undefined;
 
@@ -26,13 +38,13 @@ export function TodayRow({ tone, icon: ModuleIcon, title, detail, onPress, done 
       accessibilityLabel={`${title}, ${detail}`}
       accessibilityState={checkable ? { checked: done } : undefined}
       onPress={onPress}
-      className="min-h-[60px] flex-row items-center gap-3 py-2 active:opacity-70">
-      <View className={`h-10 w-10 items-center justify-center rounded-full ${TONES[tone].soft}`}>
-        <ModuleIcon size={20} weight="fill" color={colors[TONES[tone].color]} />
+      style={({ pressed }) => [s.row, pressed && s.pressed]}>
+      <View style={[s.disc, { backgroundColor: colors[TONES[tone].soft] }]}>
+        <ModuleIcon size={20} weight="fill" color={colors[TONES[tone].text]} />
       </View>
-      <View className="flex-1">
-        <Text className={`font-medium text-body ${done ? 'text-ink-muted' : 'text-ink'}`}>{title}</Text>
-        <Text className="font-medium text-caption text-ink-subtle">{detail}</Text>
+      <View style={s.fill}>
+        <Text style={done ? s.titleDone : s.title}>{title}</Text>
+        <Text style={s.detail}>{detail}</Text>
       </View>
       {checkable ? (
         <StatusMark tone={tone} state={done ? 'done' : 'pending'} />

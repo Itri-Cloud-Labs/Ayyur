@@ -1,9 +1,10 @@
 import { CaretRightIcon } from 'phosphor-react-native/src/icons/CaretRight';
 import { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { tapHaptic } from '@/lib/haptics';
-import { useThemeColors } from '@/theme/colors';
+import { night } from '@/theme/palette';
+import { radius, text } from '@/theme/styles';
 
 import { quranAmounts, quranReadingOptions, suggestedAmount, translations } from '../data';
 import { useFlow } from '../flow';
@@ -11,11 +12,11 @@ import { StepLayout } from '../shell';
 import type { QuranGoal, QuranKnown, QuranReading, QuranTime } from '../types';
 import { Chips, OptionList } from '../ui/options';
 import { Sheet } from '../ui/sheets';
+import { ss } from './styles';
 
 /** Reading comfort, with the translation as a follow-up line once answered. */
 export function QuranReadingStep() {
   const { answers, set } = useFlow();
-  const colors = useThemeColors();
   const [picking, setPicking] = useState(false);
   const translation = translations.find((t) => t.id === answers.translation)!;
   return (
@@ -42,17 +43,17 @@ export function QuranReadingStep() {
             tapHaptic();
             setPicking(true);
           }}
-          className="mt-5 min-h-[64px] flex-row items-center gap-3 rounded-control border-2 border-line px-4 py-3 active:opacity-80">
-          <View className="flex-1">
-            <Text className="font-medium text-label text-ink-muted">English translation, shown with the Arabic</Text>
-            <Text className="font-heading text-body text-ink">{translation.name}</Text>
+          style={({ pressed }) => [styles.translation, pressed && styles.pressed]}>
+          <View style={ss.fill}>
+            <Text style={ss.label}>English translation, shown with the Arabic</Text>
+            <Text style={ss.strong}>{translation.name}</Text>
           </View>
-          <Text className="font-heading text-label text-quran-text">Change</Text>
-          <CaretRightIcon size={18} weight="bold" color={colors.quranText} />
+          <Text style={styles.change}>Change</Text>
+          <CaretRightIcon size={18} weight="bold" color={night.quranText} />
         </Pressable>
       ) : null}
       <Sheet visible={picking} onClose={() => setPicking(false)} label="Choose a translation">
-        <Text className="mb-4 font-heading text-headline text-ink">Choose a translation</Text>
+        <Text style={styles.sheetTitle}>Choose a translation</Text>
         <OptionList
           tone="quran"
           suggested="saheeh"
@@ -82,8 +83,8 @@ const TIMES: { id: QuranTime; label: string }[] = [
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <View className="mt-7">
-      <Text accessibilityRole="header" className="mb-3 text-center font-heading text-title text-ink">
+    <View style={ss.section}>
+      <Text accessibilityRole="header" style={ss.sectionTitle}>
         {title}
       </Text>
       {children}
@@ -169,3 +170,21 @@ export function QuranPlan() {
     </StepLayout>
   );
 }
+
+const styles = StyleSheet.create({
+  translation: {
+    marginTop: 20,
+    minHeight: 64,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderRadius: radius.control,
+    borderWidth: 2,
+    borderColor: night.line,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  pressed: { opacity: 0.8 },
+  change: text('heading', 'label', night.quranText),
+  sheetTitle: { ...text('heading', 'headline', night.ink), marginBottom: 16 },
+});

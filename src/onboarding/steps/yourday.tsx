@@ -5,12 +5,13 @@ import { InfoIcon } from 'phosphor-react-native/src/icons/Info';
 import { LockIcon } from 'phosphor-react-native/src/icons/Lock';
 import type { Icon } from 'phosphor-react-native';
 import { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Expression } from '@/components/ayyur/layers';
 import { tapHaptic } from '@/lib/haptics';
 import { formatClock } from '@/lib/time';
-import { useThemeColors } from '@/theme/colors';
+import { night } from '@/theme/palette';
+import { radius, text } from '@/theme/styles';
 
 import { previewTimes, voices } from '../data';
 import { useFlow } from '../flow';
@@ -19,14 +20,15 @@ import type { Nudges, Voice } from '../types';
 import { Field, Stepper, SwitchRow } from '../ui/controls';
 import { OptionList } from '../ui/options';
 import { SimulatedPrompt } from '../ui/sheets';
+import { ss } from './styles';
 
 const DAY = 24 * 60;
 const wrap = (m: number) => ((m % DAY) + DAY) % DAY;
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <View className="mt-7">
-      <Text accessibilityRole="header" className="mb-3 text-center font-heading text-title text-ink">
+    <View style={ss.section}>
+      <Text accessibilityRole="header" style={ss.sectionTitle}>
         {title}
       </Text>
       {children}
@@ -61,17 +63,15 @@ export function Day() {
         hint: 'I’ll keep quiet in between.',
       }}
       footer={needsPermission ? <StepFooter label="Continue and allow notifications" onPress={() => setAsking(true)} /> : undefined}>
-      <View className="gap-2">
+      <View style={ss.gap2}>
         {(
           [
             ['Bedtime', 'sleepAt'],
             ['Wake up', 'wakeAt'],
           ] as const
         ).map(([label, key]) => (
-          <View
-            key={key}
-            className="min-h-[72px] flex-row items-center justify-between gap-3 rounded-card border-2 border-line bg-surface px-4 py-3">
-            <Text className="font-heading text-title text-ink">{label}</Text>
+          <View key={key} style={styles.clock}>
+            <Text style={ss.title}>{label}</Text>
             <Stepper
               compact
               label={label}
@@ -81,7 +81,7 @@ export function Day() {
           </View>
         ))}
       </View>
-      <View className="mt-2">
+      <View style={styles.mt2}>
         <SwitchRow
           tone="prayer"
           title="Let the Fajr reminder through"
@@ -112,7 +112,7 @@ export function Day() {
             },
           ]}
         />
-        <Text className="mt-3 text-center font-body text-label text-ink-muted">I never message you to make you feel bad.</Text>
+        <Text style={[ss.smallCentred, styles.mt3]}>I never message you to make you feel bad.</Text>
       </Section>
       <SimulatedPrompt
         visible={asking}
@@ -156,9 +156,9 @@ export function Be() {
         }))}
       />
       {chosen ? (
-        <View accessibilityLiveRegion="polite" className="mt-4 rounded-card border-2 border-line bg-surface px-4 py-3">
-          <Text className="font-medium text-label text-ink-muted">I’d say</Text>
-          <Text className="mt-1 font-medium text-body text-ink">{`“${chosen.line}”`}</Text>
+        <View accessibilityLiveRegion="polite" style={[ss.card, styles.said]}>
+          <Text style={ss.label}>I’d say</Text>
+          <Text style={styles.line}>{`“${chosen.line}”`}</Text>
         </View>
       ) : null}
       <Section title="How lively should I be?">
@@ -175,7 +175,7 @@ export function Be() {
           value={answers.celebrations}
           onChange={(celebrations) => set({ celebrations })}
         />
-        <Text className="mt-2 text-center font-body text-label text-ink-muted">Animation follows your phone’s reduce-motion setting.</Text>
+        <Text style={[ss.smallCentred, styles.mt2]}>Animation follows your phone’s reduce-motion setting.</Text>
       </Section>
     </StepLayout>
   );
@@ -198,9 +198,8 @@ function PrivacyChoice({
   disabled?: boolean;
   note?: string;
 }) {
-  const colors = useThemeColors();
   return (
-    <View className="rounded-card border-2 border-line bg-surface px-4 pb-2">
+    <View style={[ss.card, styles.privacy]}>
       <SwitchRow
         stacked
         title={title}
@@ -209,17 +208,17 @@ function PrivacyChoice({
         onChange={onChange}
         disabled={disabled}
         icon={
-          <View className="h-10 w-10 items-center justify-center rounded-full bg-raised">
-            <ChoiceIcon size={20} weight="fill" color={colors.ink} />
+          <View style={styles.disc}>
+            <ChoiceIcon size={20} weight="fill" color={night.ink} />
           </View>
         }
       />
       {note ? (
-        <View className="mb-2 flex-row items-start gap-2">
-          <View className="pt-0.5">
-            <InfoIcon size={16} weight="fill" color={colors.inkMuted} />
+        <View style={[ss.aside, styles.mb2]}>
+          <View style={ss.asideIcon}>
+            <InfoIcon size={16} weight="fill" color={night.inkMuted} />
           </View>
-          <Text className="flex-1 font-medium text-label text-ink-muted">{note}</Text>
+          <Text style={[ss.label, ss.fill]}>{note}</Text>
         </View>
       ) : null}
     </View>
@@ -238,7 +237,7 @@ export function Privacy() {
         hint: 'Three separate choices, all off until you turn them on.',
         badge: 'lock',
       }}>
-      <View className="gap-3">
+      <View style={ss.gap3}>
         <PrivacyChoice
           icon={CloudArrowUpIcon}
           title="Encrypted backup and sync"
@@ -263,7 +262,7 @@ export function Privacy() {
           onChange={(checkIns) => set({ checkIns })}
         />
       </View>
-      <Text className="mt-4 text-center font-body text-label text-ink-muted">
+      <Text style={[ss.smallCentred, styles.mt4]}>
         I’ll ask again before anything goes to an AI for the first time. You can change all three in You.
       </Text>
     </StepLayout>
@@ -272,7 +271,6 @@ export function Privacy() {
 
 export function Note() {
   const { answers, set } = useFlow();
-  const colors = useThemeColors();
   const has = answers.note.trim().length > 0;
   return (
     <StepLayout
@@ -291,16 +289,16 @@ export function Note() {
         accessibilityLabel="Anything else you’d like Ayyur to know"
         placeholder="A routine, a goal, something you’re going through."
       />
-      <View className="mt-3 flex-row items-start gap-2">
-        <View className="pt-0.5">
-          <LockIcon size={16} weight="fill" color={colors.inkSubtle} />
+      <View style={[ss.aside, styles.mt3]}>
+        <View style={ss.asideIcon}>
+          <LockIcon size={16} weight="fill" color={night.inkSubtle} />
         </View>
-        <Text className="flex-1 font-body text-label text-ink-muted">
+        <Text style={[ss.small, ss.fill]}>
           {answers.aiContext
             ? 'Kept on this phone. Because you turned on “Use what you’ve told me”, relevant parts may be sent with your questions.'
             : 'Kept on this phone. It only goes to the AI if you turn on “Use what you’ve told me”.'}
         </Text>
-        {has ? <Text className="font-medium text-label text-ink-subtle">{`${answers.note.length}/500`}</Text> : null}
+        {has ? <Text style={styles.count}>{`${answers.note.length}/500`}</Text> : null}
       </View>
       {has ? (
         <Pressable
@@ -310,10 +308,32 @@ export function Note() {
             tapHaptic();
             set({ note: '' });
           }}
-          className="mt-1 min-h-[48px] justify-center self-start active:opacity-70">
-          <Text className="font-heading text-body text-ink-muted">Clear</Text>
+          style={({ pressed }) => [ss.link, styles.mt1, pressed && ss.pressed]}>
+          <Text style={ss.linkLabel}>Clear</Text>
         </Pressable>
       ) : null}
     </StepLayout>
   );
 }
+
+const styles = StyleSheet.create({
+  mt1: { marginTop: 4 },
+  mt2: { marginTop: 8 },
+  mt3: { marginTop: 12 },
+  mt4: { marginTop: 16 },
+  mb2: { marginBottom: 8 },
+  clock: {
+    ...StyleSheet.flatten(ss.card),
+    minHeight: 72,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    paddingVertical: 12,
+  },
+  said: { marginTop: 16, paddingVertical: 12 },
+  line: { ...text('medium', 'body', night.ink), marginTop: 4 },
+  privacy: { paddingTop: 0, paddingBottom: 8 },
+  disc: { height: 40, width: 40, alignItems: 'center', justifyContent: 'center', borderRadius: radius.full, backgroundColor: night.raised },
+  count: text('medium', 'label', night.inkSubtle),
+});

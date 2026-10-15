@@ -1,6 +1,18 @@
-import { Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+
+import { night } from '@/theme/palette';
+import { text } from '@/theme/styles';
 
 import { Field } from './controls';
+
+// Onboarding only, so always night.
+const styles = StyleSheet.create({
+  wrap: { alignItems: 'center', gap: 12 },
+  field: { width: '100%', maxWidth: 240 },
+  input: { textAlign: 'center', letterSpacing: 4 },
+  note: { ...text('medium', 'label', night.inkMuted), textAlign: 'center' },
+  wrong: { color: night.dangerText },
+});
 
 const EARLIEST = 1920;
 
@@ -18,8 +30,8 @@ export function YearEntry({ text, onChangeText, onSubmit }: { text: string; onCh
   const complete = text.length === 4;
   const invalid = complete && !validYear(text);
   return (
-    <View className="items-center gap-3">
-      <View className="w-full max-w-[240px]">
+    <View style={styles.wrap}>
+      <View style={styles.field}>
         <Field
           large
           autoFocus
@@ -33,12 +45,10 @@ export function YearEntry({ text, onChangeText, onSubmit }: { text: string; onCh
           accessibilityHint="Four digits"
           returnKeyType="done"
           onSubmitEditing={onSubmit}
-          style={{ textAlign: 'center', letterSpacing: 4 }}
+          style={styles.input}
         />
       </View>
-      <Text
-        accessibilityLiveRegion="polite"
-        className={`text-center font-medium text-label ${invalid ? 'text-danger-text' : 'text-ink-muted'}`}>
+      <Text accessibilityLiveRegion="polite" style={[styles.note, invalid && styles.wrong]}>
         {invalid ? `Enter a year between ${EARLIEST} and ${new Date().getFullYear()}.` : 'Just the year, not the date.'}
       </Text>
     </View>

@@ -27,8 +27,9 @@ import { Button } from '@/components/button';
 import { useTabBarOffset } from '@/components/tab-bar/visibility';
 import { tapHaptic } from '@/lib/haptics';
 import { useKeyboard } from '@/lib/use-keyboard';
-import { useThemeColors } from '@/theme/colors';
+import { useThemeColors, withAlpha } from '@/theme/colors';
 import { night } from '@/theme/palette';
+import { radius, text } from '@/theme/styles';
 
 import { type AyyurCue, type Beat, PART_NAMES, useFlow, useFlowNav } from './flow';
 import { ProgressMoon } from './ui/progress-moon';
@@ -117,8 +118,8 @@ function Header() {
   const theme = useThemeColors();
   const { step, progress, canGoBack, back, editing } = useFlowNav();
   return (
-    <View style={{ height: HEADER }} className="flex-row items-center justify-between px-3">
-      <View className="w-24 items-start">
+    <View style={styles.header}>
+      <View style={styles.headerSide}>
         {canGoBack && step.id !== 'complete' ? (
           <Pressable
             accessibilityRole="button"
@@ -127,9 +128,9 @@ function Header() {
               tapHaptic();
               back();
             }}
-            className="h-12 min-w-[48px] flex-row items-center justify-center gap-1 rounded-full px-2 active:opacity-70">
+            style={({ pressed }) => [styles.back, pressed && styles.pressed]}>
             <CaretLeftIcon size={24} weight="bold" color={theme.ink} />
-            {editing ? <Text className="font-medium text-label text-ink">Plan</Text> : null}
+            {editing ? <Text style={styles.backLabel}>Plan</Text> : null}
           </Pressable>
         ) : null}
       </View>
@@ -137,11 +138,11 @@ function Header() {
         accessible
         accessibilityRole="progressbar"
         accessibilityLabel={`${PART_NAMES[step.part]}, ${Math.round(progress * 100)} percent of the way`}
-        className="flex-row items-center gap-2">
+        style={styles.part}>
         <ProgressMoon fraction={progress} />
-        <Text className="font-medium text-label text-ink-muted">{PART_NAMES[step.part]}</Text>
+        <Text style={styles.partLabel}>{PART_NAMES[step.part]}</Text>
       </View>
-      <View className="w-24" />
+      <View style={styles.headerSide} />
     </View>
   );
 }
@@ -179,22 +180,18 @@ function Question({ cue, reaction, large, compact }: { cue: AyyurCue; reaction: 
   }));
 
   return (
-    // Animated views take plain styles only, so the layout classes live on the inner view.
     <Animated.View style={[styles.full, style]}>
-      <View className="w-full items-center gap-2 px-6">
-        <View className="w-full max-w-[360px] gap-2">
-          <Text
-            ref={heading}
-            accessibilityRole="header"
-            className={`text-center text-ink ${large ? 'font-display text-display' : compact ? 'font-heading text-title' : 'font-heading text-headline'}`}>
+      <View style={styles.question}>
+        <View style={styles.questionText}>
+          <Text ref={heading} accessibilityRole="header" style={large ? styles.sayLarge : compact ? styles.sayCompact : styles.say}>
             {cue.say}
           </Text>
           {/* While typing, the question stays and its explanation steps aside to make room. */}
-          {cue.hint && !compact ? <Text className="text-center font-body text-body text-ink-muted">{cue.hint}</Text> : null}
+          {cue.hint && !compact ? <Text style={styles.hint}>{cue.hint}</Text> : null}
         </View>
         {reaction && !compact ? (
-          <View accessibilityLiveRegion="polite" className="rounded-full bg-surface px-3 py-1">
-            <Text className="font-medium text-label text-ink-muted">{reaction}</Text>
+          <View accessibilityLiveRegion="polite" style={styles.reaction}>
+            <Text style={styles.partLabel}>{reaction}</Text>
           </View>
         ) : null}
       </View>
@@ -266,11 +263,11 @@ function AyyurStage({
 
   return (
     // The large pose gets extra room so his halo clears the header and the question.
-    <View style={{ height: size ? size + (staged ? Math.round(size * 0.36) : 12) : 0 }} className="items-center justify-center">
+    <View style={[styles.centre, { height: size ? size + (staged ? Math.round(size * 0.36) : 12) : 0 }]}>
       {staged ? (
         <Animated.View style={[styles.halo, halo]}>
-          <View className="h-[232px] w-[232px] items-center justify-center rounded-full bg-surface">
-            <View className="h-[204px] w-[204px] rounded-full bg-raised/60" />
+          <View style={styles.haloOuter}>
+            <View style={styles.haloInner} />
           </View>
         </Animated.View>
       ) : null}
@@ -292,7 +289,7 @@ function AyyurStage({
           accessibilityLabel="Ayyur, a smiling moon. Tap him to say hello."
         />
         {BadgeIcon ? (
-          <View style={styles.badge} className="h-16 w-16 items-center justify-center rounded-full border-4 border-canvas bg-ink">
+          <View style={styles.badge}>
             <BadgeIcon size={30} weight="fill" color={night.canvas} />
           </View>
         ) : null}
@@ -381,7 +378,7 @@ export function OnboardingShell() {
   }, [back, canGoBack, step.id]);
 
   return (
-    <View className="flex-1">
+    <View style={styles.body}>
       <Sky progress={progress} />
       <View style={{ paddingTop: top, flex: 1 }}>
         <Header />
@@ -410,13 +407,13 @@ export function StepFooter({ label, onPress, extra }: { label?: string; onPress?
     <>
       {typing ? null : extra}
       <Button label={text} tone={step.tone} disabled={!ready} onPress={onPress ?? next} />
-      {!ready && step.required && !typing ? <Text className="text-center font-medium text-label text-ink-muted">{step.required.reason}</Text> : null}
+      {!ready && step.required && !typing ? <Text style={styles.reason}>{step.required.reason}</Text> : null}
       {offerShortcut ? (
         <Pressable
           accessibilityRole="button"
           onPress={finishWithSuggestions}
-          className="min-h-[44px] items-center justify-center active:opacity-70">
-          <Text className="font-medium text-label text-ink-muted">Use suggestions for the rest</Text>
+          style={({ pressed }) => [styles.shortcut, pressed && styles.pressed]}>
+          <Text style={styles.partLabel}>Use suggestions for the rest</Text>
         </Pressable>
       ) : null}
     </>
@@ -457,16 +454,19 @@ export function StepLayout({ cue, children, footer }: { cue: AyyurCue; children?
   // When the keyboard opens, make sure the focused field sits above the footer, scrolling if needed.
   useEffect(() => {
     if (!keyboard.open) return;
-    const t = setTimeout(() => {
-      const field = TextInput.State.currentlyFocusedInput?.();
-      if (!field || !footerTop.current) return;
-      footerTop.current.measureInWindow((_, footerY) => {
-        field.measureInWindow((__, y, ___, h) => {
-          const overlap = y + h + 12 - footerY;
-          if (overlap > 0) scroller.current?.scrollTo({ y: offset.current + overlap, animated: true });
+    const t = setTimeout(
+      () => {
+        const field = TextInput.State.currentlyFocusedInput?.();
+        if (!field || !footerTop.current) return;
+        footerTop.current.measureInWindow((_, footerY) => {
+          field.measureInWindow((__, y, ___, h) => {
+            const overlap = y + h + 12 - footerY;
+            if (overlap > 0) scroller.current?.scrollTo({ y: offset.current + overlap, animated: true });
+          });
         });
-      });
-    }, Platform.OS === 'ios' ? 280 : 120);
+      },
+      Platform.OS === 'ios' ? 280 : 120,
+    );
     return () => clearTimeout(t);
   }, [keyboard.open, keyboard.height]);
 
@@ -482,7 +482,7 @@ export function StepLayout({ cue, children, footer }: { cue: AyyurCue; children?
     // no behaviour there); adding one as well shrank the step twice and hid the field.
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.body, { paddingBottom: lift }]}>
       <View ref={frame} collapsable={false} style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]} />
-      <View className={`border-t ${scrolled ? 'border-line' : 'border-transparent'}`} />
+      <View style={[styles.rule, scrolled && styles.ruleShown]} />
       <ScrollView
         ref={scroller}
         keyboardShouldPersistTaps="handled"
@@ -495,15 +495,14 @@ export function StepLayout({ cue, children, footer }: { cue: AyyurCue; children?
         onLayout={(e) => setViewport(e.nativeEvent.layout.height)}
         onContentSizeChange={(_, h) => setContent(h)}
         contentContainerStyle={[styles.scroll, docked ? styles.docked : null]}>
-        <View className="w-full max-w-[560px] px-6">{children}</View>
+        <View style={styles.content}>{children}</View>
       </ScrollView>
       <View
         ref={footerTop}
         collapsable={false}
-        className={`items-center border-t px-6 pt-3 ${overflows ? 'border-line' : 'border-transparent'}`}
         // The keyboard covers the home indicator, so the safe-area gap isn't needed while it's up.
-        style={{ paddingBottom: keyboard.open ? 12 : Math.max(bottom, 16) }}>
-        <View className="w-full max-w-[560px] gap-2">{footer ?? <StepFooter />}</View>
+        style={[styles.footer, overflows && styles.ruleShown, { paddingBottom: keyboard.open ? 12 : Math.max(bottom, 16) }]}>
+        <View style={styles.footerContent}>{footer ?? <StepFooter />}</View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -511,6 +510,39 @@ export function StepLayout({ cue, children, footer }: { cue: AyyurCue; children?
 
 const styles = StyleSheet.create({
   body: { flex: 1 },
+  pressed: { opacity: 0.7 },
+  header: { height: HEADER, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12 },
+  headerSide: { width: 96, alignItems: 'flex-start' },
+  back: {
+    height: 48,
+    minWidth: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    borderRadius: radius.full,
+    paddingHorizontal: 8,
+  },
+  backLabel: text('medium', 'label', night.ink),
+  part: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  partLabel: text('medium', 'label', night.inkMuted),
+  question: { width: '100%', alignItems: 'center', gap: 8, paddingHorizontal: 24 },
+  questionText: { width: '100%', maxWidth: 360, gap: 8 },
+  say: { ...text('heading', 'headline', night.ink), textAlign: 'center' },
+  sayLarge: { ...text('display', 'display', night.ink), textAlign: 'center' },
+  sayCompact: { ...text('heading', 'title', night.ink), textAlign: 'center' },
+  hint: { ...text('body', 'body', night.inkMuted), textAlign: 'center' },
+  reaction: { borderRadius: radius.full, backgroundColor: night.surface, paddingHorizontal: 12, paddingVertical: 4 },
+  centre: { alignItems: 'center', justifyContent: 'center' },
+  haloOuter: { height: 232, width: 232, alignItems: 'center', justifyContent: 'center', borderRadius: 116, backgroundColor: night.surface },
+  haloInner: { height: 204, width: 204, borderRadius: 102, backgroundColor: withAlpha(night.raised, 0.6) },
+  reason: { ...text('medium', 'label', night.inkMuted), textAlign: 'center' },
+  shortcut: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  rule: { borderTopWidth: 1, borderTopColor: 'transparent' },
+  ruleShown: { borderTopColor: night.line },
+  content: { width: '100%', maxWidth: 560, paddingHorizontal: 24 },
+  footer: { alignItems: 'center', borderTopWidth: 1, borderTopColor: 'transparent', paddingHorizontal: 24, paddingTop: 12 },
+  footerContent: { width: '100%', maxWidth: 560, gap: 8 },
   scroll: {
     flexGrow: 1,
     alignItems: 'center',
@@ -520,7 +552,19 @@ const styles = StyleSheet.create({
   docked: { justifyContent: 'flex-end' },
   full: { width: '100%' },
   moon: { width: BASE, height: BASE },
-  badge: { position: 'absolute', right: -6, bottom: 4 },
+  badge: {
+    position: 'absolute',
+    right: -6,
+    bottom: 4,
+    height: 64,
+    width: 64,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 32,
+    borderWidth: 4,
+    borderColor: night.canvas,
+    backgroundColor: night.ink,
+  },
   burstOrigin: {
     position: 'absolute',
     left: '50%',

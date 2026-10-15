@@ -12,6 +12,7 @@ import { Chips, OptionList } from '../ui/options';
 import { Tile } from '../ui/tile';
 import { validYear, YearEntry } from '../ui/year-entry';
 import { useAutoAdvance } from './shared';
+import { ss } from './styles';
 
 export function Name() {
   const { answers, set, next } = useFlow();
@@ -92,7 +93,7 @@ export function GenderStep() {
         say: 'Are you a brother or a sister?',
         hint: answers.gender ? CONSEQUENCE[answers.gender] : 'It changes a few things in how I set up prayer.',
       }}>
-      <View accessibilityRole="radiogroup" className="flex-row gap-3">
+      <View accessibilityRole="radiogroup" style={ss.pair}>
         <Tile centred role="radio" title="Brother" selected={answers.gender === 'male'} onPress={() => choose('male')} />
         <Tile centred role="radio" title="Sister" selected={answers.gender === 'female'} onPress={() => choose('female')} />
       </View>
@@ -115,10 +116,8 @@ export function PracticeStep() {
         onChange={(practice) => set({ practice })}
         options={practiceOptions.map(({ id, label }) => ({ id, label }))}
       />
-      <Text className="mb-3 mt-7 text-center font-heading text-title text-ink">Were you born Muslim, or did you embrace Islam later?</Text>
-      <Text className="mb-4 text-center font-body text-label text-ink-muted">
-        Optional. It doesn’t tell me what you know; it only helps me choose my words.
-      </Text>
+      <Text style={[ss.sectionTitle, ss.section]}>Were you born Muslim, or did you embrace Islam later?</Text>
+      <Text style={[ss.smallCentred, ss.mb4]}>Optional. It doesn’t tell me what you know; it only helps me choose my words.</Text>
       <Chips<Background>
         single
         label="Background"
@@ -166,16 +165,16 @@ export function Goals() {
                 set({ intentions: [], topIntention: null, exploring: true });
                 next();
               }}
-              className="min-h-[44px] items-center justify-center active:opacity-70">
-              <Text className="font-medium text-label text-ink-muted">I’m just exploring for now</Text>
+              style={({ pressed }) => [ss.quiet, pressed && ss.pressed]}>
+              <Text style={ss.label}>I’m just exploring for now</Text>
             </Pressable>
           }
         />
       }>
       <Chips value={answers.intentions} onChange={change} options={intentions} />
       {lit.length > 1 ? (
-        <View className="mt-7">
-          <Text className="mb-3 text-center font-heading text-title text-ink">Which one matters most?</Text>
+        <View style={ss.section}>
+          <Text style={ss.sectionTitle}>Which one matters most?</Text>
           <Chips
             single
             label="Most important goal"

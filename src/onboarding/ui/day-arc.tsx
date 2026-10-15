@@ -3,12 +3,14 @@ import { MoonIcon } from 'phosphor-react-native/src/icons/Moon';
 import { SunIcon } from 'phosphor-react-native/src/icons/Sun';
 import { SunDimIcon } from 'phosphor-react-native/src/icons/SunDim';
 import { SunHorizonIcon } from 'phosphor-react-native/src/icons/SunHorizon';
-import { Image, Pressable, Text, View } from 'react-native';
+import { memo } from 'react';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 import type { PrayerId } from '@/data/sample';
 import { tapHaptic } from '@/lib/haptics';
-import { night } from '@/theme/palette';
+import { fixed, night } from '@/theme/palette';
+import { text } from '@/theme/styles';
 
 const W = 320;
 const H = 200;
@@ -50,7 +52,7 @@ function curve(points: { x: number; y: number }[]) {
  * The five prayers along the day. Ayyur sits on the one you'd like the most help with, so choosing
  * moves him along his own sky.
  */
-export function DayArc({ value, onChange }: { value: PrayerId | 'all' | null; onChange: (id: PrayerId) => void }) {
+export const DayArc = memo(function DayArc({ value, onChange }: { value: PrayerId | 'all' | null; onChange: (id: PrayerId) => void }) {
   return (
     <View accessibilityRole="radiogroup" accessibilityLabel="Prayers through the day" style={{ width: '100%', aspectRatio: W / H }}>
       <Svg width="100%" height="100%" viewBox={`0 0 ${W} ${H}`} style={{ position: 'absolute' }} accessible={false}>
@@ -71,28 +73,37 @@ export function DayArc({ value, onChange }: { value: PrayerId | 'all' | null; on
               onChange(id);
             }}
             hitSlop={6}
-            style={{
-              position: 'absolute',
-              left: `${(x / W) * 100}%`,
-              top: `${(y / H) * 100}%`,
-              width: 76,
-              marginLeft: -38,
-              marginTop: -DISC / 2,
-            }}
-            className="items-center active:opacity-80">
-            <View
-              style={{ width: DISC, height: DISC }}
-              className={`items-center justify-center rounded-full border-2 ${chosen ? 'border-prayer bg-prayer-soft' : all ? 'border-prayer bg-surface' : 'border-line bg-surface'}`}>
+            style={({ pressed }) => [styles.stop, { left: `${(x / W) * 100}%`, top: `${(y / H) * 100}%` }, pressed && styles.pressed]}>
+            <View style={[styles.disc, chosen ? styles.discChosen : all ? styles.discAll : null]}>
               {chosen ? (
                 <Image source={face} style={{ width: DISC - 8, height: DISC - 8 }} accessible={false} />
               ) : (
                 <PrayerIcon size={24} weight="fill" color={all ? night.prayerText : night.inkSubtle} />
               )}
             </View>
-            <Text className={`mt-1 text-label ${chosen ? 'font-heading text-prayer-text' : 'font-medium text-ink-muted'}`}>{name}</Text>
+            <Text style={chosen ? styles.nameChosen : styles.name}>{name}</Text>
           </Pressable>
         );
       })}
     </View>
   );
-}
+});
+
+const styles = StyleSheet.create({
+  stop: { position: 'absolute', width: 76, marginLeft: -38, marginTop: -DISC / 2, alignItems: 'center' },
+  pressed: { opacity: 0.8 },
+  disc: {
+    width: DISC,
+    height: DISC,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: DISC / 2,
+    borderWidth: 2,
+    borderColor: night.line,
+    backgroundColor: night.surface,
+  },
+  discChosen: { borderColor: fixed.prayer, backgroundColor: night.prayerSoft },
+  discAll: { borderColor: fixed.prayer },
+  name: { ...text('medium', 'label', night.inkMuted), marginTop: 4 },
+  nameChosen: { ...text('heading', 'label', night.prayerText), marginTop: 4 },
+});

@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, G, Line, Polygon } from 'react-native-svg';
 
 import { fixed, night } from '@/theme/palette';
+import { text } from '@/theme/styles';
 
 // Where stars sit, as fractions of the width and height, in drawing order. Hand-placed to stay apart.
 const PLACES = [
@@ -83,13 +84,10 @@ export function Constellation({ goals, brightest }: { goals: { id: string; label
               <Text
                 key={g.id}
                 numberOfLines={2}
-                style={{
-                  position: 'absolute',
-                  left: Math.min(width - 120, Math.max(0, p.x - 60)),
-                  top: p.y + 18,
-                  width: 120,
-                }}
-                className={`text-center text-caption ${i === 0 && brightest ? 'font-heading text-ink' : 'font-medium text-ink-muted'}`}>
+                style={[
+                  i === 0 && brightest ? styles.brightest : styles.label,
+                  { left: Math.min(width - 120, Math.max(0, p.x - 60)), top: p.y + 18 },
+                ]}>
                 {g.label}
               </Text>
             );
@@ -99,3 +97,8 @@ export function Constellation({ goals, brightest }: { goals: { id: string; label
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  label: { ...text('medium', 'caption', night.inkMuted), position: 'absolute', width: 120, textAlign: 'center' },
+  brightest: { ...text('heading', 'caption', night.ink), position: 'absolute', width: 120, textAlign: 'center' },
+});

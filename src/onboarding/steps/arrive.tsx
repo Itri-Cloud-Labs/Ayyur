@@ -3,15 +3,17 @@ import { EnvelopeIcon } from 'phosphor-react-native/src/icons/Envelope';
 import { GoogleLogoIcon } from 'phosphor-react-native/src/icons/GoogleLogo';
 import type { Icon } from 'phosphor-react-native';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/button';
 import { tapHaptic } from '@/lib/haptics';
-import { useThemeColors } from '@/theme/colors';
+import { night } from '@/theme/palette';
+import { radius, text } from '@/theme/styles';
 
 import { useFlow } from '../flow';
 import { StepLayout } from '../shell';
 import { Sheet } from '../ui/sheets';
+import { ss } from './styles';
 
 const PROVIDERS: { id: string; label: string; icon: Icon }[] = [
   { id: 'Apple', label: 'Continue with Apple', icon: AppleLogoIcon },
@@ -20,7 +22,6 @@ const PROVIDERS: { id: string; label: string; icon: Icon }[] = [
 ];
 
 function SignInSheet({ visible, onClose, onSignedIn }: { visible: boolean; onClose: () => void; onSignedIn: (provider: string) => void }) {
-  const colors = useThemeColors();
   const [busy, setBusy] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
@@ -37,11 +38,9 @@ function SignInSheet({ visible, onClose, onSignedIn }: { visible: boolean; onClo
 
   return (
     <Sheet visible={visible} onClose={busy ? () => {} : onClose} label="Sign in">
-      <Text className="font-heading text-headline text-ink">Sign in to Ayyur</Text>
-      <Text className="mt-1 font-body text-body text-ink-muted">
-        New here? This creates your account too. Backup and sync stay off until you turn them on.
-      </Text>
-      <View className="mt-5 gap-2">
+      <Text style={styles.title}>Sign in to Ayyur</Text>
+      <Text style={[ss.body, styles.mt1]}>New here? This creates your account too. Backup and sync stay off until you turn them on.</Text>
+      <View style={styles.providers}>
         {PROVIDERS.map(({ id, label, icon: ProviderIcon }) => (
           <Pressable
             key={id}
@@ -50,14 +49,14 @@ function SignInSheet({ visible, onClose, onSignedIn }: { visible: boolean; onClo
             accessibilityState={{ busy: busy === id, disabled: busy !== null }}
             disabled={busy !== null}
             onPress={() => start(id)}
-            className={`min-h-[56px] flex-row items-center gap-3 rounded-control bg-raised px-4 active:opacity-80 ${busy && busy !== id ? 'opacity-50' : ''}`}>
-            <ProviderIcon size={22} weight="fill" color={colors.ink} />
-            <Text className="flex-1 font-heading text-body text-ink">{busy === id ? 'Signing you in' : label}</Text>
-            {busy === id ? <ActivityIndicator color={colors.ink} /> : null}
+            style={({ pressed }) => [styles.provider, busy && busy !== id && styles.waiting, pressed && styles.pressed]}>
+            <ProviderIcon size={22} weight="fill" color={night.ink} />
+            <Text style={[ss.strong, ss.fill]}>{busy === id ? 'Signing you in' : label}</Text>
+            {busy === id ? <ActivityIndicator color={night.ink} /> : null}
           </Pressable>
         ))}
       </View>
-      <Text className="mt-4 text-center font-medium text-label text-ink-muted">Preview: sign-in isn’t connected yet.</Text>
+      <Text style={[ss.footnote, styles.mt4]}>Preview: sign-in isn’t connected yet.</Text>
     </Sheet>
   );
 }
@@ -90,9 +89,7 @@ export function Welcome() {
             }}
           />
           <Button variant="secondary" label="Sign in or create an account" onPress={() => setSigningIn(true)} />
-          <Text className="text-center font-medium text-label text-ink-muted">
-            An account lets you back up and sync. Everything works without one.
-          </Text>
+          <Text style={ss.footnote}>An account lets you back up and sync. Everything works without one.</Text>
         </>
       }>
       <SignInSheet
@@ -107,3 +104,21 @@ export function Welcome() {
     </StepLayout>
   );
 }
+
+const styles = StyleSheet.create({
+  title: text('heading', 'headline', night.ink),
+  mt1: { marginTop: 4 },
+  mt4: { marginTop: 16 },
+  providers: { marginTop: 20, gap: 8 },
+  provider: {
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderRadius: radius.control,
+    backgroundColor: night.raised,
+    paddingHorizontal: 16,
+  },
+  waiting: { opacity: 0.5 },
+  pressed: { opacity: 0.8 },
+});

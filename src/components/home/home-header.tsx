@@ -1,5 +1,19 @@
 import { Image, Pressable, Text, View } from 'react-native';
 
+import { text, themedStyles } from '@/theme/styles';
+
+const useStyles = themedStyles((c) => ({
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  face: { width: 44, height: 44 },
+  fill: { flex: 1 },
+  hello: text('medium', 'label', c.inkMuted),
+  name: text('heading', 'title', c.ink),
+  streak: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  pressed: { opacity: 0.7 },
+  phase: { width: 30, height: 30 },
+  days: text('display', 'title', c.moonText),
+}));
+
 const face = require('../../../assets/brand/tab/ayyur-tab-face.png');
 
 const phases = [
@@ -18,19 +32,24 @@ type HomeHeaderProps = {
 };
 
 export function HomeHeader({ name, streak, onStreakPress }: HomeHeaderProps) {
+  const s = useStyles();
   return (
-    <View className="flex-row items-center gap-3">
-      <Image source={face} accessible={false} accessibilityIgnoresInvertColors style={{ width: 44, height: 44 }} />
-      <View accessible accessibilityRole="header" accessibilityLabel={name ? `Assalamu alaykum, ${name}` : 'Assalamu alaykum'} className="flex-1">
+    <View style={s.row}>
+      <Image source={face} accessible={false} accessibilityIgnoresInvertColors style={s.face} />
+      <View
+        accessible
+        accessibilityRole="header"
+        accessibilityLabel={name ? `Assalamu alaykum, ${name}` : 'Assalamu alaykum'}
+        style={s.fill}>
         {name ? (
           <>
-            <Text className="font-medium text-label text-ink-muted">Assalamu alaykum,</Text>
-            <Text numberOfLines={1} className="font-heading text-title text-ink">
+            <Text style={s.hello}>Assalamu alaykum,</Text>
+            <Text numberOfLines={1} style={s.name}>
               {name}
             </Text>
           </>
         ) : (
-          <Text className="font-heading text-title text-ink">Assalamu alaykum</Text>
+          <Text style={s.name}>Assalamu alaykum</Text>
         )}
       </View>
       <Pressable
@@ -39,9 +58,9 @@ export function HomeHeader({ name, streak, onStreakPress }: HomeHeaderProps) {
         accessibilityHint="Opens your streaks"
         onPress={onStreakPress}
         hitSlop={8}
-        className="min-h-[48px] flex-row items-center gap-1.5 active:opacity-70">
-        <Image source={phases[streak.phase]} accessible={false} accessibilityIgnoresInvertColors style={{ width: 30, height: 30 }} />
-        <Text className="font-display text-title text-moon-text">{streak.days}</Text>
+        style={({ pressed }) => [s.streak, pressed && s.pressed]}>
+        <Image source={phases[streak.phase]} accessible={false} accessibilityIgnoresInvertColors style={s.phase} />
+        <Text style={s.days}>{streak.days}</Text>
       </Pressable>
     </View>
   );

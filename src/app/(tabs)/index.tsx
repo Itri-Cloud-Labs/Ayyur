@@ -19,8 +19,23 @@ import { tapHaptic } from '@/lib/haptics';
 import { formatDate, minutesOfDay } from '@/lib/time';
 import { useNow } from '@/lib/use-now';
 import { useThemeColors } from '@/theme/colors';
+import { text, themedStyles } from '@/theme/styles';
 
 const DAY = 24 * 60;
+
+const useStyles = themedStyles((c) => ({
+  screen: { flex: 1, backgroundColor: c.canvas },
+  page: { width: '100%', maxWidth: 560, paddingHorizontal: 24 },
+  next: { marginTop: 24 },
+  heading: { ...text('heading', 'headline', c.ink), marginTop: 32 },
+  date: text('medium', 'label', c.inkMuted),
+  // Rows carry their own side padding for the highlight, so they sit 12px outside the margin.
+  prayers: { marginHorizontal: -12, marginTop: 8 },
+  alsoHead: { marginTop: 32, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  alsoTitle: { ...text('heading', 'headline', c.ink), flex: 1 },
+  seeAll: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  pressed: { opacity: 0.7 },
+}));
 
 /** Adds to a set if absent, removes if present. */
 function toggled<T>(set: Set<T>, value: T) {
@@ -36,6 +51,7 @@ function statusOf(prayer: Prayer, minutes: number, logged: boolean): PrayerStatu
 }
 
 export default function HomeScreen() {
+  const s = useStyles();
   const router = useRouter();
   const colors = useThemeColors();
   const { top } = useSafeAreaInsets();
@@ -69,13 +85,11 @@ export default function HomeScreen() {
   };
 
   return (
-    <ScrollView
-      className="flex-1 bg-canvas"
-      contentContainerStyle={{ paddingTop: top + 12, paddingBottom: tabBarSpace, alignItems: 'center' }}>
-      <View className="w-full max-w-[560px] px-6">
+    <ScrollView style={s.screen} contentContainerStyle={{ paddingTop: top + 12, paddingBottom: tabBarSpace, alignItems: 'center' }}>
+      <View style={s.page}>
         <HomeHeader name={answers.name.trim() || null} streak={sampleStreak} onStreakPress={() => router.navigate('/you')} />
 
-        <View className="mt-6">
+        <View style={s.next}>
           <NextPrayer
             next={next}
             minutesUntil={minutesUntil}
@@ -86,12 +100,11 @@ export default function HomeScreen() {
           />
         </View>
 
-        <Text accessibilityRole="header" className="mt-8 font-heading text-headline text-ink">
+        <Text accessibilityRole="header" style={s.heading}>
           {"Today's prayers"}
         </Text>
-        <Text className="font-medium text-label text-ink-muted">{formatDate(now)}</Text>
-        {/* Rows carry their own side padding for the highlight, so they sit 12px outside the margin. */}
-        <View className="-mx-3 mt-2">
+        <Text style={s.date}>{formatDate(now)}</Text>
+        <View style={s.prayers}>
           {samplePrayers.map((prayer) => (
             <PrayerRow
               key={prayer.id}
@@ -102,8 +115,8 @@ export default function HomeScreen() {
           ))}
         </View>
 
-        <View className="mt-8 flex-row items-center justify-between gap-3">
-          <Text accessibilityRole="header" className="flex-1 font-heading text-headline text-ink">
+        <View style={s.alsoHead}>
+          <Text accessibilityRole="header" style={s.alsoTitle}>
             Also today
           </Text>
           <Pressable
@@ -111,8 +124,8 @@ export default function HomeScreen() {
             accessibilityLabel="See all habits and tasks"
             onPress={() => router.navigate('/habits')}
             hitSlop={8}
-            className="min-h-[48px] flex-row items-center gap-1 active:opacity-70">
-            <Text className="font-medium text-label text-ink-muted">See all</Text>
+            style={({ pressed }) => [s.seeAll, pressed && s.pressed]}>
+            <Text style={s.date}>See all</Text>
             <CaretRightIcon size={16} weight="bold" color={colors.inkSubtle} />
           </Pressable>
         </View>

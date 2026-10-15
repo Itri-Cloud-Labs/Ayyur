@@ -100,7 +100,7 @@ export const Sky = memo(function Sky({ progress }: { progress: number }) {
   const indexes = field.map((_, i) => i);
 
   return (
-    <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]} className="bg-canvas">
+    <View style={styles.night}>
       {indexes.filter((i) => !field[i].twinkles).map(star)}
       {Array.from({ length: GROUPS }, (_, g) => (
         <Twinkle key={`t${g}`} group={g}>
@@ -112,5 +112,6 @@ export const Sky = memo(function Sky({ progress }: { progress: number }) {
 });
 
 const styles = StyleSheet.create({
+  night: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, pointerEvents: 'none', backgroundColor: night.canvas },
   star: { position: 'absolute', borderRadius: 9999 },
 });

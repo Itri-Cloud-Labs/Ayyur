@@ -1,10 +1,11 @@
 import { CaretRightIcon } from 'phosphor-react-native/src/icons/CaretRight';
 import { PlusIcon } from 'phosphor-react-native/src/icons/Plus';
 import { useEffect, useRef, useState } from 'react';
-import { PixelRatio, Pressable, Text, View } from 'react-native';
+import { PixelRatio, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { formatClock, formatCountdown, minutesOfDay } from '@/lib/time';
-import { useThemeColors } from '@/theme/colors';
+import { fixed, night } from '@/theme/palette';
+import { radius, text } from '@/theme/styles';
 import { TONES, type Tone } from '@/theme/tones';
 
 import {
@@ -297,7 +298,6 @@ function sections(a: Answers): Section[] {
 
 export function Summary() {
   const { answers, set, goTo } = useFlow();
-  const colors = useThemeColors();
   const name = answers.name.trim();
   const lit = intentions.filter((g) => answers.intentions.includes(g.id));
   return (
@@ -311,10 +311,10 @@ export function Summary() {
       {/* Labels are placed freely, so at large text sizes the goals are only listed below. */}
       {lit.length && PixelRatio.getFontScale() <= 1.3 ? <Constellation goals={lit} brightest={answers.topIntention} /> : null}
       {sections(answers).map((section) => (
-        <View key={section.title} className="mt-6">
-          <View className="mb-1 flex-row items-center gap-2">
-            <View className={`h-2.5 w-2.5 rounded-full ${TONES[section.tone].fill}`} />
-            <Text accessibilityRole="header" className="font-heading text-title text-ink">
+        <View key={section.title} style={styles.section}>
+          <View style={styles.sectionHead}>
+            <View style={[styles.dot, { backgroundColor: COLOURS[TONES[section.tone].fill] }]} />
+            <Text accessibilityRole="header" style={styles.title}>
               {section.title}
             </Text>
           </View>
@@ -325,12 +325,12 @@ export function Summary() {
               accessibilityLabel={`${line.label}: ${line.value}`}
               accessibilityHint="Opens this question to change it"
               onPress={() => goTo(line.step, true)}
-              className="min-h-[56px] flex-row items-center gap-3 border-b border-line py-2 active:opacity-70">
-              <View className="flex-1">
-                <Text className="font-medium text-label text-ink-muted">{line.label}</Text>
-                <Text className="font-medium text-body text-ink">{line.value}</Text>
+              style={({ pressed }) => [styles.line, pressed && styles.pressed]}>
+              <View style={styles.fill}>
+                <Text style={styles.lineLabel}>{line.label}</Text>
+                <Text style={styles.lineValue}>{line.value}</Text>
               </View>
-              <CaretRightIcon size={18} weight="bold" color={colors.inkSubtle} />
+              <CaretRightIcon size={18} weight="bold" color={night.inkSubtle} />
             </Pressable>
           ))}
           {section.add ? (
@@ -341,9 +341,9 @@ export function Summary() {
                 set({ optIn: [...answers.optIn, add.section] });
                 goTo({ quran: 'quran-plan', fasting: 'fasting', habits: 'habits' }[add.section], true);
               }}
-              className="min-h-[56px] flex-row items-center gap-3 border-b border-line py-2 active:opacity-70">
-              <PlusIcon size={18} weight="bold" color={colors.ink} />
-              <Text className="flex-1 font-heading text-body text-ink">{section.add.label}</Text>
+              style={({ pressed }) => [styles.line, pressed && styles.pressed]}>
+              <PlusIcon size={18} weight="bold" color={night.ink} />
+              <Text style={[styles.add, styles.fill]}>{section.add.label}</Text>
             </Pressable>
           ) : null}
         </View>
@@ -391,3 +391,27 @@ export function Complete() {
     />
   );
 }
+
+// The summary is always in the night theme.
+const COLOURS = { ...night, ...fixed };
+
+const styles = StyleSheet.create({
+  fill: { flex: 1 },
+  pressed: { opacity: 0.7 },
+  section: { marginTop: 24 },
+  sectionHead: { marginBottom: 4, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  dot: { height: 10, width: 10, borderRadius: radius.full },
+  title: text('heading', 'title', night.ink),
+  line: {
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: night.line,
+    paddingVertical: 8,
+  },
+  lineLabel: text('medium', 'label', night.inkMuted),
+  lineValue: text('medium', 'body', night.ink),
+  add: text('heading', 'body', night.ink),
+});

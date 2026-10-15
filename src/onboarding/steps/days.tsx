@@ -1,7 +1,7 @@
 import { MoonIcon } from 'phosphor-react-native/src/icons/Moon';
-import { Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
-import { useThemeColors } from '@/theme/colors';
+import { night } from '@/theme/palette';
 
 import { fasts, habitOptions, hijriConventions, hijriPreview } from '../data';
 import { useFlow } from '../flow';
@@ -9,11 +9,11 @@ import { StepLayout } from '../shell';
 import type { HijriConvention } from '../types';
 import { Field, SwitchRow } from '../ui/controls';
 import { Chips, OptionList, Segmented } from '../ui/options';
+import { ss } from './styles';
 
 /** Fasts, with the Hijri convention as a follow-up when a fast depends on the Islamic date. */
 export function Fasting() {
   const { answers, set } = useFlow();
-  const colors = useThemeColors();
   const any = answers.fasts.length > 0;
   const datesMatter = answers.fasts.some((f) => f === 'white-days' || f === 'arafah-ashura' || f === 'shawwal');
   return (
@@ -25,7 +25,7 @@ export function Fasting() {
       }}>
       <Chips tone="fasting" value={answers.fasts} onChange={(f) => set({ fasts: f })} options={fasts} />
       {any ? (
-        <View className="mt-5">
+        <View style={styles.mt5}>
           <SwitchRow
             tone="fasting"
             title="Remind me the evening before"
@@ -36,21 +36,21 @@ export function Fasting() {
         </View>
       ) : null}
       {datesMatter ? (
-        <View className="mt-6 gap-3">
-          <Text accessibilityRole="header" className="text-center font-heading text-title text-ink">
+        <View style={styles.dates}>
+          <Text accessibilityRole="header" style={[ss.title, ss.centred]}>
             How should I count the Islamic months?
           </Text>
-          <Text className="text-center font-body text-label text-ink-muted">
+          <Text style={ss.smallCentred}>
             Months start with the new moon, so places can be a day apart. Pick what your community follows.
           </Text>
           <View
             accessible
             accessibilityLabel={`Today would be ${hijriPreview(answers.hijriOffset)}, a sample date`}
-            className="flex-row items-center gap-3 rounded-card border-2 border-line bg-surface p-4">
-            <MoonIcon size={24} weight="fill" color={colors.inkMuted} />
-            <View className="flex-1">
-              <Text className="font-heading text-title text-ink">{hijriPreview(answers.hijriOffset)}</Text>
-              <Text className="font-body text-label text-ink-muted">Today, as a sample date</Text>
+            style={[ss.card, ss.row]}>
+            <MoonIcon size={24} weight="fill" color={night.inkMuted} />
+            <View style={ss.fill}>
+              <Text style={ss.title}>{hijriPreview(answers.hijriOffset)}</Text>
+              <Text style={ss.small}>Today, as a sample date</Text>
             </View>
           </View>
           <OptionList<HijriConvention>
@@ -97,7 +97,7 @@ export function Habits() {
         onChange={(habits) => set({ habits })}
         options={habitOptions.map((h) => ({ id: h, label: h }))}
       />
-      <View className="mt-6">
+      <View style={styles.mt6}>
         <Field
           tone="habits"
           label="Something of your own"
@@ -111,3 +111,9 @@ export function Habits() {
     </StepLayout>
   );
 }
+
+const styles = StyleSheet.create({
+  mt5: { marginTop: 20 },
+  mt6: { marginTop: 24 },
+  dates: { marginTop: 24, gap: 12 },
+});

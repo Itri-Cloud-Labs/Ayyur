@@ -1,8 +1,11 @@
 import { CheckIcon } from 'phosphor-react-native/src/icons/Check';
+import { memo } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { tapHaptic } from '@/lib/haptics';
-import { ON_COLOR } from '@/theme/colors';
+import { useStableCallback } from '@/lib/use-stable-callback';
+import { ON_COLOR, useThemeColors } from '@/theme/colors';
+import { font, radius, text, themedStyles } from '@/theme/styles';
 import { TONES, type Tone } from '@/theme/tones';
 
 import { Lipped } from './press';
@@ -26,60 +29,172 @@ type ListProps<T extends string> = Selection<T> & {
   columns?: 1 | 2;
 };
 
+const useStyles = themedStyles((c) => ({
+  mark: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  markEmpty: { borderWidth: 2, borderColor: c.inkSubtle },
+  list: { gap: 12 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  cell: { flexBasis: '47%', flexGrow: 1 },
+  row: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 20, paddingVertical: 12 },
+  rowText: { flex: 1 },
+  rowTitle: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 8 },
+  label: text('heading', 'title', c.ink),
+  suggested: text('heading', 'caption', c.inkMuted),
+  detail: { ...text('body', 'label', c.inkMuted), marginTop: 4 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  chip: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, paddingVertical: 10 },
+  chipCheck: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center', borderRadius: radius.full },
+  chipOn: text('heading', 'body', c.ink),
+  chipOff: text('medium', 'body', c.inkMuted),
+  chipDetail: { fontFamily: font.body, color: c.inkSubtle },
+  segmented: { gap: 8 },
+  segmentedLabel: text('heading', 'body', c.inkMuted),
+  track: {
+    flexDirection: 'row',
+    gap: 6,
+    borderRadius: radius.control,
+    borderWidth: 2,
+    borderColor: c.line,
+    backgroundColor: c.surface,
+    padding: 6,
+  },
+  segment: {
+    minHeight: 56,
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    paddingHorizontal: 4,
+    paddingVertical: 8,
+  },
+  segmentOn: { ...text('heading', 'body', ON_COLOR), textAlign: 'center' },
+  segmentOff: { ...text('medium', 'body', c.inkMuted), textAlign: 'center' },
+  pressed: { opacity: 0.8 },
+}));
+
 /** A round mark for one answer, a rounded square for several. Filled with a Night check when chosen. */
 export function Mark({ selected, multiple, tone }: { selected: boolean; multiple: boolean; tone: Tone }) {
-  const shape = multiple ? 'rounded-lg' : 'rounded-full';
-  if (!selected) return <View className={`h-8 w-8 border-2 border-ink-subtle ${shape}`} />;
+  const s = useStyles();
+  const c = useThemeColors();
+  const shape = { borderRadius: multiple ? 8 : radius.full };
+  if (!selected) return <View style={[s.mark, s.markEmpty, shape]} />;
   return (
-    <View className={`h-8 w-8 items-center justify-center ${shape} ${TONES[tone].fill}`}>
+    <View style={[s.mark, shape, { backgroundColor: c[TONES[tone].fill] }]}>
       <CheckIcon size={18} weight="bold" color={ON_COLOR} />
     </View>
   );
 }
 
+// Rows take plain values, not the option object: steps often build their options inline, and a new
+// object each render would defeat the memo.
+type RowProps = {
+  id: string;
+  label: string;
+  detail?: string;
+  selected: boolean;
+  multiple: boolean;
+  tone: Tone;
+  suggested: boolean;
+  wide: boolean;
+  onToggle: (id: string) => void;
+};
+
+// Memoized with a stable `onToggle`, so choosing one row re-renders that row (and the one it replaces).
+const OptionRow = memo(function OptionRow({ id, label, detail, selected, multiple, tone, suggested, wide, onToggle }: RowProps) {
+  const s = useStyles();
+  return (
+    <Lipped
+      selected={selected}
+      tone={tone}
+      style={wide ? s.cell : undefined}
+      faceStyle={s.row}
+      accessibilityRole={multiple ? 'checkbox' : 'radio'}
+      accessibilityState={multiple ? { checked: selected } : { selected }}
+      accessibilityLabel={[label, detail, suggested ? 'suggested' : null].filter(Boolean).join(', ')}
+      onPress={() => onToggle(id)}>
+      <View style={s.rowText}>
+        <View style={s.rowTitle}>
+          <Text style={s.label}>{label}</Text>
+          {suggested ? <Text style={s.suggested}>Suggested</Text> : null}
+        </View>
+        {detail ? <Text style={s.detail}>{detail}</Text> : null}
+      </View>
+      <Mark selected={selected} multiple={multiple} tone={tone} />
+    </Lipped>
+  );
+});
+
 /** Raised rows to choose from: radio rows for one answer, checkbox rows for several. */
 export function OptionList<T extends string>(props: ListProps<T>) {
+  const s = useStyles();
   const { options, tone = 'neutral', suggested, columns = 1 } = props;
   const multiple = props.multiple === true;
   const isSelected = (id: T) => (props.multiple ? props.value.includes(id) : props.value === id);
 
-  const toggle = (id: T) => {
+  const toggle = useStableCallback((id: string) => {
+    const option = id as T;
     if (props.multiple) {
-      props.onChange(props.value.includes(id) ? props.value.filter((v) => v !== id) : [...props.value, id]);
+      props.onChange(props.value.includes(option) ? props.value.filter((v) => v !== option) : [...props.value, option]);
     } else {
-      props.onChange(id);
+      props.onChange(option);
     }
-  };
+  });
 
   return (
-    <View accessibilityRole={multiple ? undefined : 'radiogroup'} className={columns === 2 ? 'flex-row flex-wrap gap-3' : 'gap-3'}>
-      {options.map((option) => {
-        const selected = isSelected(option.id);
-        return (
-          <Lipped
-            key={option.id}
-            selected={selected}
-            tone={tone}
-            outer={columns === 2 ? 'basis-[47%] flex-1' : ''}
-            face="min-h-[68px] flex-row items-center gap-4 px-5 py-3"
-            accessibilityRole={multiple ? 'checkbox' : 'radio'}
-            accessibilityState={multiple ? { checked: selected } : { selected }}
-            accessibilityLabel={[option.label, option.detail, option.id === suggested ? 'suggested' : null].filter(Boolean).join(', ')}
-            onPress={() => toggle(option.id)}>
-            <View className="flex-1">
-              <View className="flex-row flex-wrap items-center gap-x-2">
-                <Text className="font-heading text-title text-ink">{option.label}</Text>
-                {option.id === suggested ? <Text className="font-heading text-caption text-ink-muted">Suggested</Text> : null}
-              </View>
-              {option.detail ? <Text className="mt-1 font-body text-label text-ink-muted">{option.detail}</Text> : null}
-            </View>
-            <Mark selected={selected} multiple={multiple} tone={tone} />
-          </Lipped>
-        );
-      })}
+    <View accessibilityRole={multiple ? undefined : 'radiogroup'} style={columns === 2 ? s.grid : s.list}>
+      {options.map((option) => (
+        <OptionRow
+          key={option.id}
+          id={option.id}
+          label={option.label}
+          detail={option.detail}
+          selected={isSelected(option.id)}
+          multiple={multiple}
+          tone={tone}
+          suggested={option.id === suggested}
+          wide={columns === 2}
+          onToggle={toggle}
+        />
+      ))}
     </View>
   );
 }
+
+type ChipProps = {
+  id: string;
+  label: string;
+  detail?: string;
+  selected: boolean;
+  single: boolean;
+  tone: Tone;
+  onToggle: (id: string) => void;
+};
+
+const Chip = memo(function Chip({ id, label, detail, selected, single, tone, onToggle }: ChipProps) {
+  const s = useStyles();
+  const c = useThemeColors();
+  return (
+    <Lipped
+      shape="pill"
+      selected={selected}
+      tone={tone}
+      faceStyle={s.chip}
+      accessibilityRole={single ? 'radio' : 'checkbox'}
+      accessibilityState={single ? { selected } : { checked: selected }}
+      accessibilityLabel={detail ? `${label}, ${detail}` : label}
+      onPress={() => onToggle(id)}>
+      {selected ? (
+        <View style={[s.chipCheck, { backgroundColor: c[TONES[tone].fill] }]}>
+          <CheckIcon size={14} weight="bold" color={ON_COLOR} />
+        </View>
+      ) : null}
+      <Text style={selected ? s.chipOn : s.chipOff}>
+        {label}
+        {detail ? <Text style={s.chipDetail}>{`  ${detail}`}</Text> : null}
+      </Text>
+    </Lipped>
+  );
+});
 
 /** Raised pills that wrap, for picking several short things, or one with `single`. */
 export function Chips<T extends string>({
@@ -97,33 +212,25 @@ export function Chips<T extends string>({
   single?: boolean;
   label?: string;
 }) {
+  const s = useStyles();
+  const toggle = useStableCallback((id: string) => {
+    const option = id as T;
+    onChange(single ? [option] : value.includes(option) ? value.filter((v) => v !== option) : [...value, option]);
+  });
   return (
-    <View accessibilityRole={single ? 'radiogroup' : undefined} accessibilityLabel={label} className="flex-row flex-wrap gap-2.5">
-      {options.map((option) => {
-        const selected = value.includes(option.id);
-        return (
-          <Lipped
-            key={option.id}
-            shape="pill"
-            selected={selected}
-            tone={tone}
-            face="min-h-[52px] flex-row items-center gap-2 px-5 py-2.5"
-            accessibilityRole={single ? 'radio' : 'checkbox'}
-            accessibilityState={single ? { selected } : { checked: selected }}
-            accessibilityLabel={option.detail ? `${option.label}, ${option.detail}` : option.label}
-            onPress={() => onChange(single ? [option.id] : selected ? value.filter((v) => v !== option.id) : [...value, option.id])}>
-            {selected ? (
-              <View className={`h-6 w-6 items-center justify-center rounded-full ${TONES[tone].fill}`}>
-                <CheckIcon size={14} weight="bold" color={ON_COLOR} />
-              </View>
-            ) : null}
-            <Text className={`text-body ${selected ? 'font-heading text-ink' : 'font-medium text-ink-muted'}`}>
-              {option.label}
-              {option.detail ? <Text className="font-body text-ink-subtle">{`  ${option.detail}`}</Text> : null}
-            </Text>
-          </Lipped>
-        );
-      })}
+    <View accessibilityRole={single ? 'radiogroup' : undefined} accessibilityLabel={label} style={s.chips}>
+      {options.map((option) => (
+        <Chip
+          key={option.id}
+          id={option.id}
+          label={option.label}
+          detail={option.detail}
+          selected={value.includes(option.id)}
+          single={single}
+          tone={tone}
+          onToggle={toggle}
+        />
+      ))}
     </View>
   );
 }
@@ -142,13 +249,12 @@ export function Segmented<T extends string>({
   onChange: (value: T) => void;
   tone?: Tone;
 }) {
+  const s = useStyles();
+  const c = useThemeColors();
   return (
-    <View className="gap-2">
-      <Text className="font-heading text-body text-ink-muted">{label}</Text>
-      <View
-        accessibilityRole="radiogroup"
-        accessibilityLabel={label}
-        className="flex-row gap-1.5 rounded-control border-2 border-line bg-surface p-1.5">
+    <View style={s.segmented}>
+      <Text style={s.segmentedLabel}>{label}</Text>
+      <View accessibilityRole="radiogroup" accessibilityLabel={label} style={s.track}>
         {options.map((option) => {
           const selected = option.id === value;
           return (
@@ -161,10 +267,8 @@ export function Segmented<T extends string>({
                 tapHaptic();
                 onChange(option.id);
               }}
-              className={`min-h-[56px] flex-1 items-center justify-center rounded-xl px-1 py-2 active:opacity-80 ${selected ? TONES[tone].fill : ''}`}>
-              <Text className={`text-center text-body ${selected ? 'font-heading text-on-color' : 'font-medium text-ink-muted'}`}>
-                {option.label}
-              </Text>
+              style={({ pressed }) => [s.segment, selected && { backgroundColor: c[TONES[tone].fill] }, pressed && s.pressed]}>
+              <Text style={selected ? s.segmentOn : s.segmentOff}>{option.label}</Text>
             </Pressable>
           );
         })}

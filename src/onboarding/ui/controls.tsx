@@ -1,12 +1,55 @@
 import { MinusIcon } from 'phosphor-react-native/src/icons/Minus';
 import { PlusIcon } from 'phosphor-react-native/src/icons/Plus';
 import { forwardRef, useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, type TextInputProps, View } from 'react-native';
+import { Pressable, Text, TextInput, type TextInputProps, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { tapHaptic } from '@/lib/haptics';
-import { useThemeColors } from '@/theme/colors';
+import { ON_COLOR, useThemeColors } from '@/theme/colors';
+import { radius, text, themedStyles } from '@/theme/styles';
 import { TONES, type Tone } from '@/theme/tones';
+
+const useStyles = themedStyles((c) => ({
+  track: { height: 32, width: 52, justifyContent: 'center', borderRadius: radius.full, borderWidth: 2, paddingHorizontal: 2 },
+  trackOff: { borderColor: c.inkSubtle, backgroundColor: c.surface },
+  thumb: { height: 24, width: 24, borderRadius: radius.full },
+  row: { minHeight: 76, paddingVertical: 12 },
+  rowInline: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  rowStacked: { gap: 8 },
+  rowHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  disabled: { opacity: 0.6 },
+  pressed: { opacity: 0.8 },
+  fill: { flex: 1 },
+  title: text('heading', 'title', c.ink),
+  detail: text('body', 'body', c.inkMuted),
+  detailBelow: { ...text('body', 'body', c.inkMuted), marginTop: 4 },
+  stepper: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  stepButton: {
+    height: 48,
+    width: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.full,
+    backgroundColor: c.raised,
+  },
+  stepPressed: { opacity: 0.7 },
+  value: { ...text('display', 'headline', c.ink), minWidth: 112, textAlign: 'center' },
+  valueCompact: { ...text('display', 'title', c.ink), minWidth: 72, textAlign: 'center' },
+  field: { gap: 8 },
+  fieldLabel: text('heading', 'body', c.inkMuted),
+  input: {
+    borderRadius: radius.control,
+    borderWidth: 2,
+    backgroundColor: c.surface,
+    paddingHorizontal: 20,
+    color: c.ink,
+    minHeight: 64,
+    paddingVertical: 12,
+  },
+  inputBody: text('body', 'body', c.ink),
+  inputLarge: text('display', 'display', c.ink),
+  inputTall: { minHeight: 180, paddingVertical: 16, textAlignVertical: 'top' },
+}));
 
 /** An on/off row. The whole row is the switch, so the target is large. */
 export function SwitchRow({
@@ -29,6 +72,8 @@ export function SwitchRow({
   /** Title and switch on one line, the explanation below at full width. For long explanations. */
   stacked?: boolean;
 }) {
+  const s = useStyles();
+  const c = useThemeColors();
   const reduceMotion = useReducedMotion();
   const on = useSharedValue(value ? 1 : 0);
   useEffect(() => {
@@ -41,10 +86,9 @@ export function SwitchRow({
     transform: [{ translateX: on.value * 20 }],
   }));
   const track = (
-    <View
-      className={`h-8 w-[52px] justify-center rounded-full border-2 px-0.5 ${value ? `${TONES[tone].fill} border-transparent` : 'border-ink-subtle bg-surface'}`}>
+    <View style={[s.track, value ? { backgroundColor: c[TONES[tone].fill], borderColor: c.transparent } : s.trackOff]}>
       <Animated.View style={thumb}>
-        <View className={`h-6 w-6 rounded-full ${value ? 'bg-on-color' : 'bg-ink-subtle'}`} />
+        <View style={[s.thumb, { backgroundColor: value ? ON_COLOR : c.inkSubtle }]} />
       </Animated.View>
     </View>
   );
@@ -60,22 +104,22 @@ export function SwitchRow({
         tapHaptic();
         onChange(!value);
       }}
-      className={`min-h-[76px] py-3 active:opacity-80 ${stacked ? 'gap-2' : 'flex-row items-center gap-4'} ${disabled ? 'opacity-60' : ''}`}>
+      style={({ pressed }) => [s.row, stacked ? s.rowStacked : s.rowInline, disabled && s.disabled, pressed && s.pressed]}>
       {stacked ? (
         <>
-          <View className="flex-row items-center gap-3">
+          <View style={s.rowHead}>
             {icon}
-            <Text className="flex-1 font-heading text-title text-ink">{title}</Text>
+            <Text style={[s.title, s.fill]}>{title}</Text>
             {track}
           </View>
-          {detail ? <Text className="font-body text-body text-ink-muted">{detail}</Text> : null}
+          {detail ? <Text style={s.detail}>{detail}</Text> : null}
         </>
       ) : (
         <>
           {icon}
-          <View className="flex-1">
-            <Text className="font-heading text-title text-ink">{title}</Text>
-            {detail ? <Text className="mt-1 font-body text-body text-ink-muted">{detail}</Text> : null}
+          <View style={s.fill}>
+            <Text style={s.title}>{title}</Text>
+            {detail ? <Text style={s.detailBelow}>{detail}</Text> : null}
           </View>
           {track}
         </>
@@ -98,6 +142,7 @@ export function Stepper({
   spokenValue?: string;
   compact?: boolean;
 }) {
+  const s = useStyles();
   const colors = useThemeColors();
   const step = (direction: 1 | -1) => {
     tapHaptic();
@@ -117,7 +162,7 @@ export function Stepper({
       }}
       onPressOut={() => clearInterval(repeat.current)}
       hitSlop={4}
-      className="h-12 w-12 items-center justify-center rounded-full bg-raised active:opacity-70">
+      style={({ pressed }) => [s.stepButton, pressed && s.stepPressed]}>
       {direction === 1 ? <PlusIcon size={20} weight="bold" color={colors.ink} /> : <MinusIcon size={20} weight="bold" color={colors.ink} />}
     </Pressable>
   );
@@ -130,11 +175,9 @@ export function Stepper({
       accessibilityValue={{ text: spokenValue ?? display }}
       accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
       onAccessibilityAction={(event) => step(event.nativeEvent.actionName === 'increment' ? 1 : -1)}
-      className="flex-row items-center gap-3">
+      style={s.stepper}>
       {button(-1)}
-      <Text className={`text-center font-display text-ink ${compact ? 'min-w-[72px] text-title' : 'min-w-[112px] text-headline'}`}>
-        {display}
-      </Text>
+      <Text style={compact ? s.valueCompact : s.value}>{display}</Text>
       {button(1)}
     </View>
   );
@@ -150,12 +193,13 @@ export const Field = forwardRef<
     large?: boolean;
   }
 >(function Field({ label, tone = 'neutral', tall = false, large = false, style, onFocus, onBlur, ...props }, ref) {
+  const s = useStyles();
   const colors = useThemeColors();
   const [focused, setFocused] = useState(false);
 
   return (
-    <View className="gap-2">
-      {label ? <Text className="font-heading text-body text-ink-muted">{label}</Text> : null}
+    <View style={s.field}>
+      {label ? <Text style={s.fieldLabel}>{label}</Text> : null}
       <TextInput
         ref={ref}
         placeholderTextColor={colors.inkSubtle}
@@ -168,16 +212,15 @@ export const Field = forwardRef<
           setFocused(false);
           onBlur?.(e);
         }}
-        className={`rounded-control border-2 bg-surface px-5 text-ink ${large ? 'font-display text-display' : 'font-body text-body'} ${
-          focused ? TONES[tone].border : 'border-line'
-        } ${tall ? 'min-h-[180px] py-4' : 'min-h-[64px] py-3'}`}
-        style={[tall ? styles.tall : null, style]}
+        style={[
+          s.input,
+          large ? s.inputLarge : s.inputBody,
+          { borderColor: focused ? colors[TONES[tone].border] : colors.line },
+          tall ? s.inputTall : null,
+          style,
+        ]}
         {...props}
       />
     </View>
   );
-});
-
-const styles = StyleSheet.create({
-  tall: { textAlignVertical: 'top' },
 });

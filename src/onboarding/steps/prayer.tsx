@@ -5,13 +5,14 @@ import { MagnifyingGlassIcon } from 'phosphor-react-native/src/icons/MagnifyingG
 import { MapPinIcon } from 'phosphor-react-native/src/icons/MapPin';
 import { NavigationArrowIcon } from 'phosphor-react-native/src/icons/NavigationArrow';
 import { useMemo, useState } from 'react';
-import { PixelRatio, Pressable, Text, View } from 'react-native';
+import { PixelRatio, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/button';
 import type { PrayerId } from '@/data/sample';
 import { tapHaptic } from '@/lib/haptics';
 import { formatClock } from '@/lib/time';
-import { useThemeColors } from '@/theme/colors';
+import { fixed, night } from '@/theme/palette';
+import { font, radius, text } from '@/theme/styles';
 
 import { cities, countryAsr, deviceCity, extraPrayers, madhhabs, methods, previewTimes, suggestedMethod } from '../data';
 import { useFlow } from '../flow';
@@ -26,13 +27,12 @@ import { SimulatedPrompt } from '../ui/sheets';
 import { Tile } from '../ui/tile';
 
 function Note({ children }: { children: string }) {
-  const colors = useThemeColors();
   return (
-    <View className="flex-row items-start gap-2">
-      <View className="pt-0.5">
-        <LockIcon size={16} weight="fill" color={colors.inkSubtle} />
+    <View style={styles.note}>
+      <View style={styles.noteIcon}>
+        <LockIcon size={16} weight="fill" color={night.inkSubtle} />
       </View>
-      <Text className="flex-1 font-body text-label text-ink-muted">{children}</Text>
+      <Text style={[styles.small, styles.fill]}>{children}</Text>
     </View>
   );
 }
@@ -45,15 +45,14 @@ function TextLink({ label, onPress, tone = 'prayer' }: { label: string; onPress:
         tapHaptic();
         onPress();
       }}
-      className="min-h-[48px] justify-center self-start active:opacity-70">
-      <Text className={`font-heading text-body ${tone === 'prayer' ? 'text-prayer-text' : 'text-ink-muted'}`}>{label}</Text>
+      style={({ pressed }) => [styles.link, pressed && styles.pressed]}>
+      <Text style={tone === 'prayer' ? styles.linkPrayer : styles.linkMuted}>{label}</Text>
     </Pressable>
   );
 }
 
 export function Location() {
   const { answers, set } = useFlow();
-  const colors = useThemeColors();
   const [mode, setMode] = useState<'choose' | 'search'>(answers.cityFrom === 'search' ? 'search' : 'choose');
   const [asking, setAsking] = useState(false);
   const [query, setQuery] = useState('');
@@ -80,8 +79,8 @@ export function Location() {
         badge: answers.city ? 'pin' : undefined,
       }}>
       {mode === 'choose' && !found ? (
-        <View className="gap-4">
-          <View className="flex-row gap-3">
+        <View style={styles.gap4}>
+          <View style={styles.pair}>
             <Tile
               icon={NavigationArrowIcon}
               tone="prayer"
@@ -102,12 +101,12 @@ export function Location() {
       ) : null}
 
       {found ? (
-        <View className="gap-2">
-          <View className="flex-row items-center gap-3 rounded-card border-2 border-prayer bg-prayer-soft p-4">
-            <MapPinIcon size={26} weight="fill" color={colors.prayerText} />
-            <View className="flex-1">
-              <Text className="font-heading text-title text-ink">{answers.city!.name}</Text>
-              <Text className="font-body text-label text-ink-muted">{answers.city!.country}, from your phone’s location</Text>
+        <View style={styles.gap2}>
+          <View style={styles.found}>
+            <MapPinIcon size={26} weight="fill" color={night.prayerText} />
+            <View style={styles.fill}>
+              <Text style={styles.title}>{answers.city!.name}</Text>
+              <Text style={styles.small}>{answers.city!.country}, from your phone’s location</Text>
             </View>
           </View>
           <TextLink
@@ -121,8 +120,8 @@ export function Location() {
       ) : null}
 
       {mode === 'search' ? (
-        <View className="gap-3">
-          {declined ? <Text className="font-body text-body text-ink-muted">No problem. Let’s find your city instead.</Text> : null}
+        <View style={styles.gap3}>
+          {declined ? <Text style={styles.body}>No problem. Let’s find your city instead.</Text> : null}
           <Field
             autoFocus
             tone="prayer"
@@ -133,26 +132,26 @@ export function Location() {
             autoCorrect={false}
             returnKeyType="search"
           />
-          <View accessibilityRole="radiogroup" className="gap-2">
+          <View accessibilityRole="radiogroup" style={styles.gap2}>
             {results.map((city) => (
               <Lipped
                 key={city.id}
                 tone="prayer"
                 selected={answers.city?.id === city.id}
-                face="min-h-[56px] flex-row items-center gap-3 px-4 py-2"
+                faceStyle={styles.cityRow}
                 accessibilityRole="radio"
                 accessibilityState={{ selected: answers.city?.id === city.id }}
                 accessibilityLabel={`${city.name}, ${city.country}`}
                 onPress={() => set({ city, cityFrom: 'search', method: null })}>
-                <MapPinIcon size={20} weight="fill" color={answers.city?.id === city.id ? colors.prayerText : colors.inkSubtle} />
-                <Text className="flex-1 font-heading text-body text-ink">
+                <MapPinIcon size={20} weight="fill" color={answers.city?.id === city.id ? night.prayerText : night.inkSubtle} />
+                <Text style={[styles.strong, styles.fill]}>
                   {city.name}
-                  <Text className="font-body text-ink-muted">{`, ${city.country}`}</Text>
+                  <Text style={styles.country}>{`, ${city.country}`}</Text>
                 </Text>
               </Lipped>
             ))}
             {results.length === 0 ? (
-              <Text className="px-1 py-3 font-body text-body text-ink-muted">
+              <Text style={[styles.body, styles.empty]}>
                 I don’t know that one yet. Try the nearest big city; you can adjust times later.
               </Text>
             ) : null}
@@ -209,19 +208,19 @@ export function MadhhabStep() {
         shape="card"
         tone="prayer"
         selected={selected}
-        outer="flex-1"
-        face="p-4"
+        style={styles.fill}
+        faceStyle={styles.asrCard}
         accessibilityRole="radio"
         accessibilityState={{ selected }}
         accessibilityLabel={`${label}, ${schools}, from ${time} today`}
         onPress={() => set({ asr: id })}>
         {/* At large text sizes the card keeps its words and drops the picture. */}
         {PixelRatio.getFontScale() > 1.3 ? null : <ShadowDiagram times={id === 'standard' ? 1 : 2} lit={selected} />}
-        <Text className="mt-2 font-display text-title text-ink">{label}</Text>
-        <Text className="font-body text-label text-ink-muted">{schools}</Text>
-        <Text numberOfLines={1} className={`mt-2 font-display text-headline ${selected ? 'text-prayer-text' : 'text-ink-muted'}`}>
+        <Text style={styles.asrLabel}>{label}</Text>
+        <Text style={styles.small}>{schools}</Text>
+        <Text numberOfLines={1} style={[styles.asrTime, selected && styles.prayerText]}>
           {clock}
-          <Text className="font-heading text-label">{` ${meridiem}`}</Text>
+          <Text style={styles.meridiem}>{` ${meridiem}`}</Text>
         </Text>
       </Lipped>
     );
@@ -255,12 +254,12 @@ export function MadhhabStep() {
         <TextLink label="My Asr is different from my madhhab’s" onPress={() => setChangingAsr(true)} />
       ) : null}
       {askAsr ? (
-        <View className="mt-6 gap-3">
-          <Text className="text-center font-heading text-title text-ink">Which Asr time do you follow?</Text>
-          <Text className="text-center font-body text-label text-ink-muted">
+        <View style={styles.asrAsk}>
+          <Text style={[styles.title, styles.centred]}>Which Asr time do you follow?</Text>
+          <Text style={[styles.small, styles.centred]}>
             Asr begins when a shadow is as long as what casts it (plus its noon shadow), or twice as long in the Hanafi school.
           </Text>
-          <View accessibilityRole="radiogroup" className="flex-row gap-3">
+          <View accessibilityRole="radiogroup" style={styles.pair}>
             {card('standard', 'Earlier', "Shafi'i, Maliki, Hanbali", earlier)}
             {card('hanafi', 'Later', 'Hanafi', later)}
           </View>
@@ -282,13 +281,13 @@ function TimesPreview() {
     <View
       accessible
       accessibilityLabel={`${label}: ${times.map((t) => `${t.name} ${formatClock(t.minutes)}`).join(', ')}`}
-      className="rounded-card border-2 border-line bg-prayer-soft p-4">
-      <Text className="mb-2 font-heading text-label text-prayer-text">{label}</Text>
-      <View className="flex-row justify-between">
+      style={styles.preview}>
+      <Text style={styles.previewLabel}>{label}</Text>
+      <View style={styles.previewRow}>
         {times.map((t) => (
-          <View key={t.id} className="items-center">
-            <Text className="font-medium text-caption text-ink-muted">{t.name}</Text>
-            <Text className="font-heading text-body text-ink">{formatClock(t.minutes).split(' ')[0]}</Text>
+          <View key={t.id} style={styles.previewTime}>
+            <Text style={styles.caption}>{t.name}</Text>
+            <Text style={styles.strong}>{formatClock(t.minutes).split(' ')[0]}</Text>
           </View>
         ))}
       </View>
@@ -347,7 +346,7 @@ export function Method() {
       }>
       <TimesPreview />
       {listing ? (
-        <View className="mt-5">
+        <View style={styles.mt5}>
           <OptionList
             tone="prayer"
             suggested={suggested.id}
@@ -361,7 +360,7 @@ export function Method() {
           />
         </View>
       ) : null}
-      <View className="mt-3">
+      <View style={styles.mt3}>
         <TextLink label={tuning ? 'Done adjusting minutes' : 'Adjust minutes to match my mosque'} onPress={() => setTuning(!tuning)} />
       </View>
       {tuning ? (
@@ -369,12 +368,10 @@ export function Method() {
           {base.map((t) => {
             const offset = answers.offsets[t.id];
             return (
-              <View key={t.id} className="min-h-[72px] flex-row items-center gap-3 border-b border-line py-2">
-                <View className="flex-1">
-                  <Text className="font-heading text-title text-ink">{t.name}</Text>
-                  <Text className={`font-medium text-body ${offset ? 'text-prayer-text' : 'text-ink-muted'}`}>
-                    {formatClock(t.minutes + offset)}
-                  </Text>
+              <View key={t.id} style={styles.tuneRow}>
+                <View style={styles.fill}>
+                  <Text style={styles.title}>{t.name}</Text>
+                  <Text style={[styles.tuneTime, offset ? styles.prayerText : null]}>{formatClock(t.minutes + offset)}</Text>
                 </View>
                 <Stepper
                   compact
@@ -418,16 +415,16 @@ export function PrayerFocus() {
         hint: name || focus === 'all' ? undefined : 'I’ll sit wherever you need me most.',
       }}>
       <DayArc value={focus} onChange={(prayerFocus) => set({ prayerFocus })} />
-      <View className="mt-4">
+      <View style={styles.mt4}>
         <Lipped
           shape="control"
           tone="prayer"
           selected={focus === 'all'}
-          face="min-h-[56px] items-center justify-center px-5"
+          faceStyle={styles.allFive}
           accessibilityRole="radio"
           accessibilityState={{ selected: focus === 'all' }}
           onPress={() => set({ prayerFocus: 'all' })}>
-          <Text className="font-heading text-body text-ink">All five equally</Text>
+          <Text style={styles.strong}>All five equally</Text>
         </Lipped>
       </View>
     </StepLayout>
@@ -449,7 +446,7 @@ export function PrayerExtras() {
         <Chips tone="prayer" value={answers.extraPrayers} onChange={(extra) => set({ extraPrayers: extra })} options={extraPrayers} />
       ) : null}
       {answers.gender === 'male' ? (
-        <View className={showExtras ? 'mt-5' : ''}>
+        <View style={showExtras ? styles.mt5 : null}>
           <SwitchRow
             stacked
             tone="prayer"
@@ -467,7 +464,6 @@ export function PrayerExtras() {
 /** Reminder style, and the notification permission asked right here, where it's explained. */
 export function Reminders() {
   const { answers, set, next } = useFlow();
-  const colors = useThemeColors();
   const [asking, setAsking] = useState(false);
   const off = answers.reminderWhen === 'none';
   const jumuah = answers.jumuah ?? answers.gender === 'male';
@@ -491,32 +487,32 @@ export function Reminders() {
         needsPermission ? (
           <>
             <Button label="Turn on reminders" tone="prayer" onPress={() => setAsking(true)} />
-            <Text className="text-center font-medium text-label text-ink-muted">Your phone will ask for permission next.</Text>
+            <Text style={styles.footnote}>Your phone will ask for permission next.</Text>
             <Pressable
               accessibilityRole="button"
               onPress={() => {
                 set({ notificationPermission: 'later' });
                 next();
               }}
-              className="min-h-[44px] items-center justify-center active:opacity-70">
-              <Text className="font-medium text-label text-ink-muted">Not now</Text>
+              style={({ pressed }) => [styles.quiet, pressed && styles.pressed]}>
+              <Text style={styles.footnote}>Not now</Text>
             </Pressable>
           </>
         ) : undefined
       }>
-      <View className="gap-5">
+      <View style={styles.gap5}>
         <View
           accessible
           accessibilityLabel={off ? 'No prayer reminders' : `Sample reminder: ${lead}, ${formatClock(asr.minutes)}`}
-          className={`flex-row items-center gap-3 rounded-card border-2 border-line p-4 ${off ? 'bg-surface' : 'bg-prayer-soft'}`}>
+          style={[styles.sample, off && styles.sampleOff]}>
           {off || answers.reminderSound === 'silent' ? (
-            <BellSlashIcon size={22} weight="fill" color={colors.inkSubtle} />
+            <BellSlashIcon size={22} weight="fill" color={night.inkSubtle} />
           ) : (
-            <BellIcon size={22} weight="fill" color={colors.prayerText} />
+            <BellIcon size={22} weight="fill" color={night.prayerText} />
           )}
-          <View className="flex-1">
-            <Text className="font-heading text-body text-ink">{off ? 'No prayer reminders' : lead}</Text>
-            <Text className="font-body text-label text-ink-muted">
+          <View style={styles.fill}>
+            <Text style={styles.strong}>{off ? 'No prayer reminders' : lead}</Text>
+            <Text style={styles.small}>
               {off
                 ? 'Times stay on Home'
                 : `${formatClock(asr.minutes)} · ${answers.reminderSound === 'adhan' ? 'with the adhan' : answers.reminderSound === 'chime' ? 'soft chime' : 'silent'}`}
@@ -556,9 +552,7 @@ export function Reminders() {
           onChange={(v) => set({ jumuah: v })}
         />
         {answers.reminderWhen === 'before' || answers.reminderWhen === 'both' ? (
-          <Text className="font-body text-label text-ink-muted">
-            “Before” means 10 minutes ahead. You can set each prayer separately later.
-          </Text>
+          <Text style={styles.small}>“Before” means 10 minutes ahead. You can set each prayer separately later.</Text>
         ) : null}
       </View>
       <SimulatedPrompt
@@ -574,3 +568,58 @@ export function Reminders() {
     </StepLayout>
   );
 }
+
+const card = { borderRadius: radius.card, borderWidth: 2, padding: 16 } as const;
+
+const styles = StyleSheet.create({
+  fill: { flex: 1 },
+  centred: { textAlign: 'center' },
+  pressed: { opacity: 0.7 },
+  gap2: { gap: 8 },
+  gap3: { gap: 12 },
+  gap4: { gap: 16 },
+  gap5: { gap: 20 },
+  mt3: { marginTop: 12 },
+  mt4: { marginTop: 16 },
+  mt5: { marginTop: 20 },
+  pair: { flexDirection: 'row', gap: 12 },
+  title: text('heading', 'title', night.ink),
+  strong: text('heading', 'body', night.ink),
+  body: text('body', 'body', night.inkMuted),
+  small: text('body', 'label', night.inkMuted),
+  caption: text('medium', 'caption', night.inkMuted),
+  footnote: { ...text('medium', 'label', night.inkMuted), textAlign: 'center' },
+  prayerText: { color: night.prayerText },
+  note: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  noteIcon: { paddingTop: 2 },
+  link: { minHeight: 48, justifyContent: 'center', alignSelf: 'flex-start' },
+  linkPrayer: text('heading', 'body', night.prayerText),
+  linkMuted: text('heading', 'body', night.inkMuted),
+  quiet: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  found: { ...card, flexDirection: 'row', alignItems: 'center', gap: 12, borderColor: fixed.prayer, backgroundColor: night.prayerSoft },
+  cityRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 8 },
+  country: { fontFamily: font.body, color: night.inkMuted },
+  empty: { paddingHorizontal: 4, paddingVertical: 12 },
+  asrCard: { padding: 16 },
+  asrLabel: { ...text('display', 'title', night.ink), marginTop: 8 },
+  asrTime: { ...text('display', 'headline', night.inkMuted), marginTop: 8 },
+  meridiem: text('heading', 'label', night.inkMuted),
+  asrAsk: { marginTop: 24, gap: 12 },
+  preview: { ...card, borderColor: night.line, backgroundColor: night.prayerSoft },
+  previewLabel: { ...text('heading', 'label', night.prayerText), marginBottom: 8 },
+  previewRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  previewTime: { alignItems: 'center' },
+  tuneRow: {
+    minHeight: 72,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: night.line,
+    paddingVertical: 8,
+  },
+  tuneTime: text('medium', 'body', night.inkMuted),
+  allFive: { minHeight: 56, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
+  sample: { ...card, flexDirection: 'row', alignItems: 'center', gap: 12, borderColor: night.line, backgroundColor: night.prayerSoft },
+  sampleOff: { backgroundColor: night.surface },
+});

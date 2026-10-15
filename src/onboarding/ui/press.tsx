@@ -28,7 +28,16 @@ const SHAPES = { card: radius.card, control: radius.control, pill: radius.full }
  * The press runs on the UI thread (see `useSink`), so it shows at once even while JavaScript is busy.
  * Selected, its outline and lip take the tone's colour.
  */
-export function Lipped({ selected = false, tone = 'neutral', shape = 'control', faceStyle, style, children, onPress, ...props }: LippedProps) {
+export function Lipped({
+  selected = false,
+  tone = 'neutral',
+  shape = 'control',
+  faceStyle,
+  style,
+  children,
+  onPress,
+  ...props
+}: LippedProps) {
   const c = useThemeColors();
   const t = TONES[tone];
   const sink = useSink(LIP);

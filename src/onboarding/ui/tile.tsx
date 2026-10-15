@@ -2,9 +2,22 @@ import type { Icon } from 'phosphor-react-native';
 import { Text, View } from 'react-native';
 
 import { useThemeColors } from '@/theme/colors';
+import { radius, text, themedStyles } from '@/theme/styles';
 import { TONES, type Tone } from '@/theme/tones';
 
 import { Lipped } from './press';
+
+const useStyles = themedStyles((c) => ({
+  outer: { flex: 1 },
+  face: { minHeight: 132, gap: 12, padding: 20, justifyContent: 'center' },
+  centred: { alignItems: 'center' },
+  disc: { height: 48, width: 48, alignItems: 'center', justifyContent: 'center', borderRadius: radius.full },
+  words: { gap: 4 },
+  title: text('display', 'title', c.ink),
+  titleCentred: text('display', 'headline', c.ink),
+  detail: text('body', 'label', c.inkMuted),
+  detailCentred: { ...text('body', 'label', c.inkMuted), textAlign: 'center' },
+}));
 
 /**
  * A large raised choice, for the few moments where two paths carry equal weight. Sized by its content
@@ -30,28 +43,29 @@ export function Tile({
   /** Centred content, for short single-word choices side by side. */
   centred?: boolean;
 }) {
+  const s = useStyles();
   const colors = useThemeColors();
-  const disc = tone === 'neutral' ? 'bg-surface' : TONES[tone].soft;
-  const iconColour = tone === 'neutral' ? colors.ink : colors[TONES[tone].color];
+  const disc = tone === 'neutral' ? colors.surface : colors[TONES[tone].soft];
+  const iconColour = tone === 'neutral' ? colors.ink : colors[TONES[tone].text];
   return (
     <Lipped
       shape="card"
       selected={selected}
       tone={tone}
-      outer="flex-1"
-      face={`min-h-[132px] gap-3 p-5 ${centred ? 'items-center justify-center' : 'justify-center'}`}
+      style={s.outer}
+      faceStyle={[s.face, centred && s.centred]}
       accessibilityRole={role}
       accessibilityState={role === 'radio' ? { selected } : undefined}
       accessibilityLabel={detail ? `${title}. ${detail}` : title}
       onPress={onPress}>
       {TileIcon ? (
-        <View className={`h-12 w-12 items-center justify-center rounded-full ${disc}`}>
+        <View style={[s.disc, { backgroundColor: disc }]}>
           <TileIcon size={26} weight="fill" color={iconColour} />
         </View>
       ) : null}
-      <View className={`gap-1 ${centred ? 'items-center' : ''}`}>
-        <Text className={`font-display text-ink ${centred ? 'text-headline' : 'text-title'}`}>{title}</Text>
-        {detail ? <Text className={`font-body text-label text-ink-muted ${centred ? 'text-center' : ''}`}>{detail}</Text> : null}
+      <View style={[s.words, centred && s.centred]}>
+        <Text style={centred ? s.titleCentred : s.title}>{title}</Text>
+        {detail ? <Text style={centred ? s.detailCentred : s.detail}>{detail}</Text> : null}
       </View>
     </Lipped>
   );
