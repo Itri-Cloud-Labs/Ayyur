@@ -44,5 +44,3 @@ export const sampleReading = { surah: 'Al-Baqarah', ayah: 142 };
 
 /** `phase` is 0 (new) to 4 (full). How a streak maps to a phase is not decided yet. */
 export const sampleStreak: { days: number; phase: 0 | 1 | 2 | 3 | 4 } = { days: 12, phase: 3 };
-
-export const sampleUser = { name: '[NAME]' };

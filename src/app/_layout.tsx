@@ -40,7 +40,10 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={scheme === 'dark' ? night : day}>
-      <Stack screenOptions={{ headerShown: false }} />
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
+        <Stack.Screen name="onboarding" options={{ animation: 'fade', gestureEnabled: false }} />
+      </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>
   );

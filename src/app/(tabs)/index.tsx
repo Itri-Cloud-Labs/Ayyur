@@ -12,6 +12,7 @@ import { NextPrayer } from '@/components/home/next-prayer';
 import { PrayerRow, type PrayerStatus } from '@/components/home/prayer-row';
 import { TodayRow } from '@/components/home/today-row';
 import { useTabBarSpace } from '@/components/tab-bar/visibility';
+import { useOnboardingState } from '@/onboarding/store';
 import {
   type Prayer,
   type PrayerId,
@@ -21,7 +22,6 @@ import {
   sampleReading,
   sampleStreak,
   sampleTodayItems,
-  sampleUser,
 } from '@/data/sample';
 import { tapHaptic } from '@/lib/haptics';
 import { formatDate, minutesOfDay } from '@/lib/time';
@@ -49,6 +49,7 @@ export default function HomeScreen() {
   const { top } = useSafeAreaInsets();
   const tabBarSpace = useTabBarSpace();
   const now = useNow();
+  const { answers } = useOnboardingState();
 
   // Held for the session only, until there is storage to write to.
   const [logged, setLogged] = useState(() => new Set<PrayerId>(sampleLoggedPrayers));
@@ -75,7 +76,7 @@ export default function HomeScreen() {
       contentContainerStyle={{ paddingTop: top + 12, paddingBottom: tabBarSpace, alignItems: 'center' }}>
       <View className="w-full max-w-[560px] px-6">
         <HomeHeader
-          name={sampleUser.name}
+          name={answers.name.trim() || null}
           streak={sampleStreak}
           onStreakPress={() => router.navigate('/you')}
         />

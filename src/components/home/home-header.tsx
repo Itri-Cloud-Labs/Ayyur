@@ -11,7 +11,8 @@ const phases = [
 ];
 
 type HomeHeaderProps = {
-  name: string;
+  /** Null when the user chose not to give a name: the greeting then stands alone. */
+  name: string | null;
   streak: { days: number; phase: 0 | 1 | 2 | 3 | 4 };
   onStreakPress: () => void;
 };
@@ -20,11 +21,17 @@ export function HomeHeader({ name, streak, onStreakPress }: HomeHeaderProps) {
   return (
     <View className="flex-row items-center gap-3">
       <Image source={face} accessible={false} accessibilityIgnoresInvertColors style={{ width: 44, height: 44 }} />
-      <View accessible accessibilityRole="header" accessibilityLabel={`Assalamu alaykum, ${name}`} className="flex-1">
-        <Text className="font-medium text-label text-ink-muted">Assalamu alaykum,</Text>
-        <Text numberOfLines={1} className="font-heading text-title text-ink">
-          {name}
-        </Text>
+      <View accessible accessibilityRole="header" accessibilityLabel={name ? `Assalamu alaykum, ${name}` : 'Assalamu alaykum'} className="flex-1">
+        {name ? (
+          <>
+            <Text className="font-medium text-label text-ink-muted">Assalamu alaykum,</Text>
+            <Text numberOfLines={1} className="font-heading text-title text-ink">
+              {name}
+            </Text>
+          </>
+        ) : (
+          <Text className="font-heading text-title text-ink">Assalamu alaykum</Text>
+        )}
       </View>
       <Pressable
         accessibilityRole="button"

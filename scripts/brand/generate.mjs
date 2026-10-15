@@ -68,28 +68,70 @@ const EY = 250;
 const cheeks = (opacity = 0.6) =>
   `<ellipse cx="158" cy="304" rx="24" ry="14" fill="${C.cheek}" opacity="${opacity}"/><ellipse cx="354" cy="304" rx="24" ry="14" fill="${C.cheek}" opacity="${opacity}"/>`;
 
-const faces = {
-  happy: () => eyeOpen(EL, EY) + eyeOpen(ER, EY) + stroke('M224 300Q256 334 288 300') + cheeks(),
-  joyful: () =>
-    eyeArc(EL, EY, 'up') +
-    eyeArc(ER, EY, 'up') +
-    `<path d="M214 296Q256 290 298 296Q296 346 256 346Q216 346 214 296Z" fill="${C.face}"/>` +
-    `<path d="M232 330Q256 316 280 330Q270 346 256 346Q242 346 232 330Z" fill="${C.cheek}"/>` +
-    cheeks(0.75),
-  wink: () => eyeOpen(EL, EY) + eyeArc(ER, EY + 2, 'up') + stroke('M222 298Q258 338 292 296') + cheeks(),
-  gentle: () => eyeOpen(EL, EY + 4, 14, 15) + eyeOpen(ER, EY + 4, 14, 15) + stroke('M234 306Q256 322 278 306') + cheeks(0.45),
-  sleepy: () => eyeArc(EL, EY + 4, 'down') + eyeArc(ER, EY + 4, 'down') + `<ellipse cx="256" cy="312" rx="11" ry="13" fill="${C.face}"/>` + cheeks(0.45),
-  thinking: () => eyeOpen(EL + 10, EY - 12, 14, 18) + eyeOpen(ER + 10, EY - 12, 14, 18) + stroke('M240 312L278 306') + cheeks(0.4),
-  curious: () => eyeOpen(EL, EY - 2, 17, 24) + eyeOpen(ER, EY - 2, 17, 24) + `<ellipse cx="256" cy="314" rx="13" ry="15" fill="${C.face}"/>` + cheeks(0.5),
-  caring: () =>
-    eyeOpen(EL, EY + 6, 14, 17) +
-    eyeOpen(ER, EY + 6, 14, 17) +
-    stroke(`M${EL - 22} ${EY - 26}Q${EL} ${EY - 40} ${EL + 16} ${EY - 38}`, 10) +
-    stroke(`M${ER + 22} ${EY - 26}Q${ER} ${EY - 40} ${ER - 16} ${EY - 38}`, 10) +
-    stroke('M238 310Q256 320 274 310') +
-    cheeks(0.4),
-  protected: () => eyeArc(EL, EY + 2, 'down') + eyeArc(ER, EY + 2, 'down') + stroke('M230 302Q256 326 282 302') + cheeks(0.5),
+// Each face is two layers, so the app can animate the eyes (blinking, glancing) apart from the mouth.
+// `blinks` marks open eyes that can close for a blink.
+const faceParts = {
+  happy: { eyes: () => eyeOpen(EL, EY) + eyeOpen(ER, EY), mouth: () => stroke('M224 300Q256 334 288 300') + cheeks(), blinks: true },
+  joyful: {
+    eyes: () => eyeArc(EL, EY, 'up') + eyeArc(ER, EY, 'up'),
+    mouth: () =>
+      `<path d="M214 296Q256 290 298 296Q296 346 256 346Q216 346 214 296Z" fill="${C.face}"/>` +
+      `<path d="M232 330Q256 316 280 330Q270 346 256 346Q242 346 232 330Z" fill="${C.cheek}"/>` +
+      cheeks(0.75),
+  },
+  wink: { eyes: () => eyeOpen(EL, EY) + eyeArc(ER, EY + 2, 'up'), mouth: () => stroke('M222 298Q258 338 292 296') + cheeks() },
+  gentle: {
+    eyes: () => eyeOpen(EL, EY + 4, 14, 15) + eyeOpen(ER, EY + 4, 14, 15),
+    mouth: () => stroke('M234 306Q256 322 278 306') + cheeks(0.45),
+    blinks: true,
+  },
+  sleepy: {
+    eyes: () => eyeArc(EL, EY + 4, 'down') + eyeArc(ER, EY + 4, 'down'),
+    mouth: () => `<ellipse cx="256" cy="312" rx="11" ry="13" fill="${C.face}"/>` + cheeks(0.45),
+  },
+  thinking: {
+    eyes: () => eyeOpen(EL + 10, EY - 12, 14, 18) + eyeOpen(ER + 10, EY - 12, 14, 18),
+    mouth: () => stroke('M240 312L278 306') + cheeks(0.4),
+    blinks: true,
+  },
+  curious: {
+    eyes: () => eyeOpen(EL, EY - 2, 17, 24) + eyeOpen(ER, EY - 2, 17, 24),
+    mouth: () => `<ellipse cx="256" cy="314" rx="13" ry="15" fill="${C.face}"/>` + cheeks(0.5),
+    blinks: true,
+  },
+  caring: {
+    eyes: () =>
+      eyeOpen(EL, EY + 6, 14, 17) +
+      eyeOpen(ER, EY + 6, 14, 17) +
+      stroke(`M${EL - 22} ${EY - 26}Q${EL} ${EY - 40} ${EL + 16} ${EY - 38}`, 10) +
+      stroke(`M${ER + 22} ${EY - 26}Q${ER} ${EY - 40} ${ER - 16} ${EY - 38}`, 10),
+    mouth: () => stroke('M238 310Q256 320 274 310') + cheeks(0.4),
+  },
+  protected: {
+    eyes: () => eyeArc(EL, EY + 2, 'down') + eyeArc(ER, EY + 2, 'down'),
+    mouth: () => stroke('M230 302Q256 326 282 302') + cheeks(0.5),
+  },
+  // Looking up at whoever is talking, with a small, patient smile.
+  listening: {
+    eyes: () => eyeOpen(EL + 2, EY - 8, 15, 20) + eyeOpen(ER + 2, EY - 8, 15, 20),
+    mouth: () => stroke('M240 306Q256 318 272 306') + cheeks(0.55),
+    blinks: true,
+  },
+  // Eyes squeezed shut by a wide open smile.
+  delighted: {
+    eyes: () => eyeArc(EL, EY - 2, 'up', 22) + eyeArc(ER, EY - 2, 'up', 22),
+    mouth: () =>
+      `<path d="M218 298Q256 306 294 298Q292 344 256 344Q220 344 218 298Z" fill="${C.face}"/>` + cheeks(0.8),
+  },
+  // Round eyes and a small round mouth: a pleasant surprise, never alarm.
+  surprised: {
+    eyes: () => eyeOpen(EL, EY - 6, 18, 26) + eyeOpen(ER, EY - 6, 18, 26),
+    mouth: () => `<ellipse cx="256" cy="318" rx="14" ry="17" fill="${C.face}"/>` + cheeks(0.45),
+    blinks: true,
+  },
 };
+
+const faces = Object.fromEntries(Object.entries(faceParts).map(([name, part]) => [name, () => part.eyes() + part.mouth()]));
 
 // Shapes drawn around the moon, outside its rotation.
 const extras = {
@@ -112,7 +154,20 @@ const underlays = {
 const FACE = 'translate(20.5 36.5) scale(0.92)';
 const face = (emotion) => `<g transform="${FACE}">${faces[emotion]()}</g>`;
 
-const tilts = { happy: -6, joyful: -10, wink: 8, gentle: 0, sleepy: 10, thinking: -4, curious: 12, caring: 4, protected: 0 };
+const tilts = {
+  happy: -6,
+  joyful: -10,
+  wink: 8,
+  gentle: 0,
+  sleepy: 10,
+  thinking: -4,
+  curious: 12,
+  caring: 4,
+  protected: 0,
+  listening: -8,
+  delighted: -4,
+  surprised: 6,
+};
 
 let clipSeq = 0;
 function moonBody({ cx = CX, cy = CY, r = R, craters = true } = {}) {
@@ -275,5 +330,14 @@ await png(join(assets, 'splash-icon.png'), splash, 1024);
 
 const favicon = svg(512, 512, place(mark, 256, 256, 640));
 await png(join(assets, 'favicon.png'), favicon, 96);
+
+// Live mascot layers for the app: a faceless body plus eyes and mouth per expression, all on the same
+// 512 canvas so they stack exactly. The app tilts, blinks and swaps them. Eyes sit at 52% of the height.
+const liveDir = join(assets, 'brand', 'live');
+await emit(liveDir, 'body', svg(512, 512, moonBody()), [480]);
+for (const [name, part] of Object.entries(faceParts)) {
+  await emit(liveDir, `${name}-eyes`, svg(512, 512, `<g transform="${FACE}">${part.eyes()}</g>`), [480]);
+  await emit(liveDir, `${name}-mouth`, svg(512, 512, `<g transform="${FACE}">${part.mouth()}</g>`), [480]);
+}
 
 console.log('Brand assets written to assets/ and assets/brand/.');
