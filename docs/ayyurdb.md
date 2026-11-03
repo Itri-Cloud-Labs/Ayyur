@@ -1,6 +1,6 @@
 # AyyurDB: architecture spec
 
-Owner: Backend agent. Status: revision 3, agreed design, not built yet. First written 2026-10-16, revised 2026-11-03.
+Owner: Backend agent. Status: revision 4, agreed design. The plain modules from M1a are built; the rest isn't. First written 2026-10-16, revised 2026-11-03.
 
 AyyurDB is the SDK that stores Ayyur's data on the phone. When the user turns on cloud sync, it also keeps that data in step with Convex across their devices. This spec covers the machinery: the schema system, the local store, row ids, sync, checksums, encryption and keys, and the account flows around them.
 
@@ -224,7 +224,7 @@ Breaking changes, which need `minVersion` raised to the new version:
 
 - removing or renaming a table or column
 - changing a column's type
-- making a nullable column required
+- making a nullable column required, or a required column nullable. Either way, one side gets a null it can't store or can't read
 - adding or removing an enum value
 - changing a table's kind, or its key columns
 
@@ -464,7 +464,7 @@ Every function except `account.status` takes the user from `ctx.auth.getUserIden
 | Check | Refusal code | What the device does |
 |---|---|---|
 | any clock in the batch is more than 5 minutes ahead of server time | `clockAhead` | Runs the clock repair in 9.4. |
-| more than 100 rows or more than 4 MiB of ciphertext in the batch; a row whose ciphertext totals more than 300 KiB; a table or column name that doesn't match the pattern in 4.2; a row id that isn't a UUID v4, a keyed id or `'singleton'`; a non-deleted row with no cells; a tombstone with cells; or a ciphertext over 17 KiB | `badRequest` | State `error`. Logs it. This is a client bug. |
+| more than 100 rows or more than 4 MiB of ciphertext in the batch; a row whose ciphertext totals more than 300 KiB; a table or column name that doesn't match the pattern in 4.2; a row id that isn't a UUID v4, a keyed id or `'singleton'`; a non-deleted row with no cells, or whose `version` isn't its largest cell clock; a tombstone with cells; or a ciphertext over 17 KiB | `badRequest` | State `error`. Logs it. This is a client bug. |
 
 Refusals are thrown as `ConvexError` with `{ code }`. A `clockAhead` refusal also carries `serverTime`. A refused call changes nothing.
 
@@ -472,7 +472,7 @@ Refusals are thrown as `ConvexError` with `{ code }`. A `clockAhead` refusal als
 
 | Function | Kind | Arguments | Returns |
 |---|---|---|---|
-| `push` | mutation | envelope, `device`, `rows: WireRow[]` (at most 100) | `{ seq, serverTime }` |
+| `push` | mutation | envelope, `device`, `rows: WireRow[]` (at most 100) | `{ seq, serverTime, newer: WireRow[] }` |
 | `changes` | query | envelope, `cursor` | `{ rows: WireRow[], nextCursor }`, at most 200 rows |
 | `checksum` | query | envelope, optional `table` | `{ seq, tables }` or `{ seq, buckets }` |
 | `bucketRows` | query | envelope, `table`, `bucket`, optional `after` | `{ seq, rows: { rowId, version, deleted }[], next }`, at most 2,000 rows |
@@ -491,12 +491,17 @@ A `WireRow` is `{ table, rowId, version, deleted, cells: { [column]: { hlc, ct }
 1. Load the stored row by `by_user_row`, with the row's `table` and `rowId`.
 2. If there is none, the merged row is the incoming row.
 3. Otherwise the merged row is `mergeRow(stored, incoming)` (9.5).
-4. If the merged row equals the stored row, meaning the same `deleted`, `version` and cell clocks, write nothing and stamp no `seq`.
-5. Otherwise take the next `account.seq`, write the merged row with that `seq`, `device` and `bucket`, and update the `checksums` total for its table and bucket: subtract the old row hash and add the new one.
+4. If the merged row differs from the incoming row, add the merged row to `newer`. This happens when the server already held a newer cell or a tombstone.
+5. If the merged row equals the stored row, meaning the same `deleted`, `version` and cell clocks, write nothing and stamp no `seq`.
+6. Otherwise take the next `account.seq`, write the merged row with that `seq`, `device` and `bucket`, and update the `checksums` total for its table and bucket: subtract the old row hash and add the new one.
 
 The response's `serverTime` is `Date.now()` in the mutation.
 
-**`changes`** reads up to 200 rows from `by_user_seq` with `seq > cursor`, in `seq` order. It stops early once the ciphertext in the page passes 4 MiB, but always returns at least one row if any exist. `nextCursor` is the highest `seq` returned, or `cursor` if none. A page holds rows from any mix of tables.
+`newer` matters because a merge that changes nothing stamps no `seq`. Without it, a device that pushed an older cell than the server's would never pull the server's cell back, and the two would differ forever with the same version, which the checksum can't see. The convergence test found this. `newer` counts toward the 4 MiB response cap; if it would pass it, `push` returns the row ids alone and the device fetches them with `rows`.
+
+**`changes`** reads up to 200 rows from `by_user_seq` with `seq > cursor`, in `seq` order. It stops early once the ciphertext in the page passes 4 MiB, but always returns at least one row if any exist. `nextCursor` is the highest `seq` returned. When the page reaches the end, meaning no rows with a higher `seq` remain, `nextCursor` is `account.seq` instead. A page holds rows from any mix of tables.
+
+The jump at the end matters after a wipe. `seq` keeps rising across wipes (invariant 16), and the wiped rows took their `seq` values with them. No remaining row may carry the latest `seq`, so without the jump the cursor could never reach `account.seq`, and reconcile would wait for it forever (11.5). The convergence test found this.
 
 **`bucketRows`** reads `by_user_bucket` for one table and bucket, ordered by `rowId`, starting after `after`. It returns at most 2,000 rows. `next` is the last `rowId` returned when more remain, or `null`. Reconcile follows `next` until it is `null`. Every page carries `seq`, and if `seq` changes between pages, reconcile starts that bucket again.
 
@@ -569,7 +574,10 @@ The device folds other clocks into `last`, so its next write sorts after everyth
 
 - For each clock in a pulled row: `last = max(last, (remote.ms, remote.counter))`.
 - For the `serverTime` returned by `push` and `vault.create`: `last = max(last, (serverTime, 0))`. A phone whose clock runs slow still writes clocks at least as new as the server's time after each push.
-- A remote clock more than 5 minutes ahead of the device's own `Date.now()` is still used for merging, but it is not folded into `last`. Convex refuses such clocks (9.4), so one should never arrive. If one does, the device logs it.
+- Every pulled clock is folded in, even one far ahead of the device's own `Date.now()`. Convex refuses clocks more than 5 minutes ahead of server time (9.4), so a pulled clock that looks far ahead means this device runs slow. Ignoring it would let the next local write get an older clock than the cell it overwrites. The server would keep the old cell, and the user's later edit would be lost. Revision 3 ignored such clocks; the convergence test found the bug.
+- The clock also remembers the newest clock it has received, from pulls and from `serverTime`. The repair in 9.4 never moves the clock below it.
+
+These rules give one guarantee that the rest of sync relies on: **every local write gets a clock later than every clock the device has seen**, apart from its own clocks that Convex refused. So a write always sorts after the cells it overwrites (invariant 20).
 
 ### 9.4 Clocks that run ahead
 
@@ -579,9 +587,14 @@ On `clockAhead` the device:
 
 1. Reads `serverTime` from the refusal and compares it with its own `Date.now()`.
 2. If its own time is still more than 5 minutes ahead, it sets state `clockWrong` and retries on the next trigger. The app tells the user their phone's date or time is wrong. Local reads and writes keep working.
-3. Once its own time is within 5 minutes, it repairs. In one write transaction it sets `last` to `(max(serverTime, now), 0)` and re-stamps every pending column with fresh ticks. That means updating `_clocks`, `_version`, the checksum and `_pending`. Then it pushes.
+3. Once its own time is within 5 minutes, it repairs, in one write transaction:
+   1. It moves the clock back to `(max(serverTime, now), 0)`, but never below the newest clock it has received (9.3), nor below the newest of its own clocks that it keeps. Those are the clocks no more than 5 minutes ahead of `serverTime`.
+   2. It ticks once.
+   3. It re-stamps, with that one tick, every local cell and every tombstone whose clock is more than 5 minutes ahead of `serverTime`. That covers pending columns and also cells written while sync was off, which reconcile would otherwise try to upload and Convex would refuse.
+   4. It updates `_clocks`, `_version` and the checksum for each re-stamped row. If sync is on, it adds the re-stamped columns to `_pending`.
+4. Then it pushes.
 
-Re-stamping is safe. Convex never accepted those clocks, so no other device has seen them. On this device they were already the newest values, and after re-stamping they still are.
+Re-stamping is safe. Convex never accepted those clocks, so no other device has seen them. The floor in step 3.1 matters: in revision 3 the clock went back to the server's time only, so a re-stamped cell could sort before a newer cell the device had already pulled and merged. The convergence test found that too.
 
 ### 9.5 Merge rule
 
@@ -654,10 +667,12 @@ Nothing runs in the background (section 18). When `AppState` changes to `backgro
 ### 11.3 Push
 
 1. A write that adds to `_pending` starts a 2-second timer. Each further write restarts it.
-2. When the timer fires, sync reads the pending entries. For each changed column it sends `{ hlc, ct }`, encrypted as in 12.2. A row whose pending entry is `*` is sent as a tombstone.
+2. When the timer fires, sync reads the pending entries. For each pending row it sends the whole row: every cell with its clock, encrypted as in 12.2, including `_extra` cells. A row whose pending entry is `*` is sent as a tombstone. Pending entries whose clock no longer matches the local row are dropped first.
+
+   Sending only the changed columns would be smaller, but it can create a row on the server that lacks required columns. That happens when the server never received the full row, for example because the reconcile after turning sync on failed. Other devices would then pull a row they can't read. The convergence test found this. Merging is per column, so the unchanged cells cost bandwidth but change nothing.
 3. It sends batches of up to 100 rows and 4 MiB of ciphertext to `push`, whichever limit comes first.
 4. When a batch is accepted, sync removes a pending entry only if its clock still matches what was sent. A column edited again while the batch was in flight stays pending.
-5. It folds `serverTime` into the clock (9.3).
+5. It folds `serverTime` into the clock (9.3), and merges each row in `newer` into the local store, as a pulled row is merged (11.4).
 6. On a network error, the pending entries stay, and sync retries with backoff: 2 s, 4 s, 8 s, up to 60 s.
 7. On a refusal, it follows the table in 8.2.
 
@@ -675,7 +690,9 @@ Nothing runs in the background (section 18). When `AppState` changes to `backgro
 
 ### 11.5 Reconcile
 
-Reconcile compares checksums and repairs the rows that differ. It is `ReconcileDB(Convex, Local)` from the diagram, and the only way data the server has never seen gets uploaded. There is no separate "first upload" path.
+Reconcile compares checksums and repairs the rows that differ. It is `ReconcileDB(Convex, Local)` from the diagram. Uploading a device's data when sync turns on is done by push (11.7), and reconcile is the safety net that catches anything push missed.
+
+The checksum has one blind spot. It hashes each row's `version`, which is the row's newest clock only. Two copies of a row can have the same newest cell but differ in an older column, and their checksums match. Whole-row pushes (11.3), `newer` in push responses (8.3) and marking every row pending when sync turns on (11.7) keep that from happening in normal operation. Open question 10 proposes closing the blind spot in the checksum itself.
 
 Preconditions, checked before step 1 and again before each later round:
 
@@ -720,16 +737,19 @@ All flows use Clerk for identity. Convex authenticates with the Clerk JWT.
 3. It re-keys local keyed rows with the new id key (6.4).
 4. It wraps the data key twice, encrypts the id key, and calls `vault.create`. If that fails with `vaultExists`, another device created the vault first. Sync discards its keys and switches to the next flow.
 5. It stores the data key in SecureStore and the returned `epoch` in `_meta`.
-6. It runs reconcile, which uploads everything.
+6. It marks every local row pending, then pushes, which uploads everything. Then it runs reconcile.
 
 **Signing in to an account that already has a vault:**
 
 1. The state is `locked` until the user enters the passphrase or the recovery code.
 2. Sync unwraps the data key, decrypts the id key, and stores both in SecureStore.
 3. It re-keys local keyed rows with the account's id key (6.4).
-4. It stores the vault's `epoch`, pulls from cursor 0, then reconciles.
+4. It stores the vault's `epoch`, and marks every local row pending.
+5. It pulls from cursor 0, pushes, then reconciles.
 
 Local rows merge with the account's by the normal rule. Singleton rows merge column by column. Nothing on the device is discarded.
+
+Marking every row pending is required, not an optimisation. A row edited while signed out can, after merging with the account's copy, have the same version as the server's copy but hold newer cells in older columns. Reconcile's checksum can't see that (11.5), so only a push uploads it. The convergence test found this. Unlocking after `'keyChanged'` runs this same flow.
 
 **Signing out:**
 
@@ -840,11 +860,14 @@ Tests, reviews and code comments refer to these by number.
 17. Reconcile compares checksums only when `_pending` is empty and the local cursor equals the server checksum's `seq`.
 18. Reads never return tombstones to app code.
 19. The local database file is never deleted while its key exists.
+20. Every local write gets a clock later than the `version` of the row it changes (9.3).
+21. Every live row in Convex holds every cell the last device to push it held, because pushes send whole rows (11.3).
+22. After a push, the device holds the server's merged version of every row it pushed, either because nothing changed or from `newer`.
 
 ## 14. Testing
 
 - **Unit tests in Node.** `clock`, `merge`, `ids`, `checksum`, the `schema` generators and the schema diff run in Node with no React Native.
-- **Convergence test.** This is the main test for decision 5. Simulated devices and a simulated server apply random interleavings of inserts, edits, upserts on the same keys, deletes, offline periods and clock skew. After full sync, every device must hold identical rows and identical checksums (invariant 11). It runs with a fixed seed in CI and with random seeds locally.
+- **Convergence test.** This is the main test for decision 5. It lives in `src/db/test/convergence.test.ts`, with the simulated phones and server in `src/db/test/sim/`. CI runs 150 seeds of 300 steps; `SIM_SEEDS` and `SIM_STEPS` widen it locally. Simulated devices and a simulated server apply random interleavings of inserts, edits, upserts on the same keys, deletes, offline periods and clock skew. After full sync, every device must hold identical rows and identical checksums (invariant 11). It runs with a fixed seed in CI and with random seeds locally.
 - **Scenario tests**, one per failure that revision 2 fixed:
   - two devices upsert the same key offline and end with one row
   - a keyed row is cleared and set again, and ends set
@@ -854,6 +877,10 @@ Tests, reviews and code comments refer to these by number.
   - a device with a clock a year ahead gets `clockAhead`, then repairs once its clock is fixed
   - reconcile during a lagging pull waits instead of reporting a difference
   - a pulled page interrupted halfway and applied again gives the same result
+  - after a wipe, the cursor reaches the account's `seq`
+  - a phone whose clock runs 10 minutes slow still writes after the newer cells it pulled
+  - a repaired clock never goes behind cells the phone already merged
+  - edits made while signed out reach the server on sign-in, even when the merged versions match
 - **Store tests.** These run the same Drizzle tables against Node's SQLite, through the storage adapter the SDK uses internally.
 - **Convex functions.** Tested with `convex-test`, covering auth, every refusal in 8.2, merge and checksum upkeep inside `push`, `changes` paging, `bucketRows` reading only its bucket, and wipe batches.
 - **Schema rules.** Tests that the schema refuses a table or column name outside the pattern in 4.2, a `ref` to a keyed table, a nullable key column, a `json` key column, and kinds combined in one table.
@@ -864,7 +891,7 @@ Tests, reviews and code comments refer to these by number.
 | Milestone | Delivers | Needs |
 |---|---|---|
 | M0 Device check | An EAS development build installed on the Itel S23. Checks: SQLCipher opens with `PRAGMA key`; `react-native-libsodium` runs `crypto_pwhash` and its timing; how Drizzle's `expo` driver runs transactions and whether it offers a synchronous one; a 50-row write transaction's time; the SecureStore option name for "this device only". Results go into this spec. | `expo-dev-client`, an EAS project |
-| M1a Pure modules | `clock`, `merge`, `ids`, `checksum`, the `schema` builders and diff, the convergence test. Runs in Node only, so it can start before M0 and doesn't affect Expo Go. | `@noble/hashes` |
+| M1a Pure modules (built) | `clock`, `merge`, `ids`, `checksum`, the `schema` builders and diff, the convergence test. Runs in Node only, so it can start before M0 and doesn't affect Expo Go. | `@noble/hashes` |
 | M1 Local | `store`, the write queue, `react`, one example table of each kind. The app reads and writes real data, local-only. `android.allowBackup: false`. | M0, expo-sqlite with SQLCipher, drizzle-orm, drizzle-kit, expo-secure-store, expo-crypto |
 | M2 Keys | `crypto`: local key, id key, data key, wrapping, recovery code, value encryption. | `react-native-libsodium`, after M0 |
 | M3 Sync | The Convex `rows` table and functions, Clerk sign-in, push, pull, the live subscription, epochs, clock bounds. | convex, @clerk/clerk-expo, a Convex project, a Clerk application |
@@ -926,6 +953,7 @@ Moving to a package later costs about an hour: move the folder, add the workspac
 7. **Deleting local data with the account.** Product decides (11.7).
 8. **Where logs go.** The spec says "logs it" for refusals, decryption failures, bad clocks and reconcile errors. Today that can only mean the device console, which nobody sees in production. A crash and error service would help, but anything sent off the phone must leave out row ids, table names and values, and PRODUCT.md principle 5 requires telling the user. Decide the service and what it may receive before M3.
 9. **Exporting data.** Should users be able to export everything as a file, for their own records or to move to another app? The SDK can read every table, so the cost is mostly UI. If yes, the format is for Product.
+10. **Checksum blind spot.** This would change founder decision 8. The row hash covers `(table, id, version, deleted)`, and `version` is only the newest clock. Two copies that share their newest cell but differ in an older column hash the same (11.5). Revision 4 prevents that in normal operation, but reconcile exists to catch what normal operation gets wrong, and it can't catch this. The fix is to hash every cell clock instead of `version`: `SHA-256(table ‖ 0x00 ‖ id ‖ 0x00 ‖ deleted ‖ 0x00 ‖ sorted "column=hlc" pairs)`. Convex can read cell clocks, so it can compute the same hash. `bucketRows` would return that hash instead of `version`. The cost is hashing a few dozen bytes more per write.
 
 ## 18. Out of scope
 
@@ -943,3 +971,11 @@ Moving to a package later costs about an hour: move the folder, add the workspac
 - **2026-11-03, revision 2.** Added section 0 on how to use the spec, the glossary, table kinds with keyed ids and the id key (B1), no deletes on keyed tables and singletons (B2), account epochs (B3), server clock bounds and `clockWrong` (B4), reconcile preconditions and two-way repair (B5), the synchronous write queue and batched change events (B6), `android.allowBackup: false` (B7), section 5 on rules for table design, the `ref` column type, value size limits, the refusal codes, `wipe` and `vault` details, the invariants list, the scenario tests, M0 and M1a, and two proposals for the founder. Resolved the conflict in revision 1 between applying a pulled page in one transaction and yielding between chunks: each chunk is now its own transaction, and the cursor moves with the last one.
 - **2026-11-03, revision 3.** The founder accepted both proposals. Convex stores all synced rows in one `rows` table and no longer knows the schema (decision 3, 16.1). The SDK lives in `src/db/` and is imported as `@/db` (decision 1, 16.2). The `serverBehind` refusal and the fixed Convex-first release order are gone. `minVersion` is raised by hand only after the app update is live. Added the name pattern for tables and columns, the `bucket` field and `by_user_bucket` index so `bucketRows` doesn't scan every row, and the import lint rules.
 - **2026-11-03, revision 3, later the same day.** Checked the design against Convex's published limits and added section 8.6. Added a 256 KiB cap per row, a 4 MiB cap per `push` batch and per `changes` or `rows` response, paging for `bucketRows`, and 1,000-document wipe batches. Sync now pushes at once when the app goes to the background. Added open questions 8 on logging and 9 on data export.
+- **2026-11-03, revision 4.** Built M1a. The convergence test found five bugs in the design, all fixed here:
+  - `changes` jumps the cursor to `account.seq` at the end, so reconcile isn't stuck waiting after a wipe (8.3).
+  - Pushes send whole rows, so the server never holds a row that lacks required columns (11.3).
+  - `push` returns `newer`, the merged rows that differ from what was sent, so a device learns when its cell lost (8.3, 11.3).
+  - Devices fold every pulled clock, and the clock repair never goes below a clock the device has seen. Both keep a local write from getting an older clock than the cell it overwrites (9.3, 9.4). The repair also re-stamps cells written while sync was off.
+  - Turning sync on, signing in and unlocking mark every local row pending, because reconcile can't see some differences (11.5, 11.7).
+
+  Also: changing nullability is breaking in either direction (4.5), `push` refuses a live row whose version isn't its newest cell clock (8.2), invariants 20 to 22, more scenario tests, and open question 10 on the checksum's blind spot.
