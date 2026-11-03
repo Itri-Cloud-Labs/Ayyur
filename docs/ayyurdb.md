@@ -1,30 +1,44 @@
 # AyyurDB: architecture spec
 
-Owner: Backend agent. Status: agreed design, not built yet (2026-10-16).
+Owner: Backend agent. Status: revision 2, agreed design, not built yet. First written 2026-10-16, revised 2026-11-03.
 
-AyyurDB is the SDK that stores Ayyur's data on the phone and, when the user turns on cloud sync, keeps it in step with Convex across their devices. This spec covers the machinery: the schema system, the local store, sync, checksums, encryption and keys, and the account flows around them. It does not define Ayyur's tables. The data model (prayer log, habits, tasks, Quran progress, streaks) gets its own spec once Product has settled the streak and prayer rules. Tables here are examples only.
+AyyurDB is the SDK that stores Ayyur's data on the phone. When the user turns on cloud sync, it also keeps that data in step with Convex across their devices. This spec covers the machinery: the schema system, the local store, row ids, sync, checksums, encryption and keys, and the account flows around them.
+
+It does not define Ayyur's tables. The data model (prayer log, habits, tasks, Quran progress, streaks) gets its own spec once Product has settled the streak and prayer rules. Tables in this document are examples. Section 5, however, sets rules that the data model must follow, because the sync machinery only works if tables are shaped a certain way.
+
+## 0. How to use this spec
+
+This section is for every agent, human or model, who builds on AyyurDB.
+
+- **MUST** and **MUST NOT** mark rules. Breaking one is a bug, even if the code works in a quick test. Most of these rules protect behaviour that only shows up with two phones, a bad clock or a lost key, which a quick test never covers.
+- **SHOULD** marks a strong default. If you depart from it, write down why in the pull request.
+- Section 13 lists the invariants as one numbered list. Tests refer to them by number, and so should code comments that rely on them.
+- The founder settled the decisions in section 1.1. Do not change them without the founder. Section 16 holds proposals that would change them, and they stay proposals until the founder says otherwise.
+- The Backend agent made the decisions in section 1.2. Another agent who wants to change one should raise it with the Backend thread first.
+- When you change this spec, add a line to the changelog in section 19.
+- If the code and this spec disagree, the spec wins until someone updates it. Do not "fix" the spec to match code that drifted.
 
 ## 1. Decisions
 
-Settled with the founder:
+### 1.1 Settled with the founder
 
 | # | Decision |
 |---|---|
-| 1 | The SDK is a workspace package, `packages/ayyurdb`, imported as `@ayyur/db`. |
-| 2 | One schema, declared with `createAyyurDBSchema()`, generates the SQLite tables (through Drizzle), the Convex tables and the TypeScript types. |
-| 3 | Convex has the same tables and columns as SQLite. Every content column is stored encrypted, one ciphertext per column. Only sync metadata is readable. |
+| 1 | The SDK is a workspace package, `packages/ayyurdb`, imported as `@ayyur/db`. See proposal P2 in section 16. |
+| 2 | One schema, declared with `createAyyurDBSchema()`, generates the SQLite tables through Drizzle, the Convex tables and the TypeScript types. |
+| 3 | Convex has the same tables and columns as SQLite. Every content column is stored encrypted, one ciphertext per column. Only sync metadata is readable. See proposal P1 in section 16. |
 | 4 | Sync is live across several devices while the app is open. |
-| 5 | Conflicts merge per column: the value with the newest hybrid logical clock (HLC) wins. Convex and the devices apply the same rule, so the server merges without decrypting. |
+| 5 | Conflicts merge per column. The value with the newest hybrid logical clock (HLC) wins. Convex and the devices apply the same rule, so the server merges without decrypting. |
 | 6 | A delete beats any edit. Deleting wipes the content and leaves a tombstone, which is kept forever. |
 | 7 | The checksum system is a pure getter. The sync system calls `getChecksum` and decides what to do. |
 | 8 | A checksum hashes each row's sync metadata `(table, id, version, deleted)`, returns one hash per table, and can be narrowed to 16 buckets per table. Totals are kept running, so reading one is instant. |
-| 9 | Cloud data is encrypted with a random data key. The key is wrapped by the user's passphrase, with a recovery code shown once as a second way in. |
+| 9 | Cloud data is encrypted with a random data key. The user's passphrase wraps that key, and a recovery code shown once gives a second way in. |
 | 10 | The SQLite file on the phone is encrypted with SQLCipher for every user, with or without an account, using a separate local key. |
-| 11 | Native crypto, so the app needs a development build. Expo Go is no longer enough. |
+| 11 | Native crypto means the app needs a development build. Expo Go is no longer enough. |
 | 12 | Schema changes are additive by default. A breaking change raises a minimum schema version, and older clients pause sync until updated. |
 | 13 | App code reads and writes only through SDK methods. Each read has a live hook. |
 | 14 | Signing in with local data merges it into the account automatically. Signing out keeps local data. Turning sync off offers "Delete my cloud copy". |
-| 15 | Phones only. No web support in the SDK. |
+| 15 | Phones only. The SDK has no web support. |
 | 16 | Modules use plain names: `schema`, `store`, `sync`, `checksum`, `crypto`, `clock`. |
 
 Mapping from the founder's diagram:
@@ -37,7 +51,42 @@ Mapping from the founder's diagram:
 | Local SQLite, SQL schema | `store` |
 | Convex, Convex schema | `@ayyur/db/convex` plus the app's `convex/` folder |
 
-## 2. Package layout
+### 1.2 Added by the Backend agent in revision 2
+
+These came out of a review of revision 1. Each fixes a failure that revision 1 allowed. The founder decisions still stand.
+
+| # | Decision | The failure it prevents |
+|---|---|---|
+| B1 | A table can declare a natural key. Its row ids are then derived from the key with a keyed hash, so two phones that record the same fact produce the same row (section 6). | Two offline phones each log Fajr for the same day. With random ids they create two rows, and the log shows Fajr twice. |
+| B2 | Keyed tables and singletons cannot be deleted. Their state changes through a column (section 5, rule R6). | A deleted keyed row is a tombstone forever, and delete beats edit. Unticking a prayer and ticking it again would silently do nothing. |
+| B3 | Each account has an epoch. Wiping the cloud copy or resetting the data key raises it, and a device on an older epoch stops syncing (section 11.6). | Phone A deletes the cloud copy. Phone B, still signed in, uploads everything again at its next reconcile. |
+| B4 | Convex refuses clocks more than 5 minutes ahead of server time, and every push response carries the server's time (section 9). | A phone whose date is set a year ahead wins every conflict until that date arrives. |
+| B5 | Reconcile compares checksums only at a shared point. The server checksum carries the `seq` it was read at, and the device compares only when its cursor matches and nothing is pending (section 11.5). | Checksums taken while a pull is still behind differ for no real reason. Reconcile then does pointless repair rounds and can end in a false `error`. |
+| B6 | Write transactions run synchronously through one queue. Reads run asynchronously (section 7.4). | `withTransactionAsync` in expo-sqlite includes any query that runs while it is open, even one outside its scope. A write could then roll back another write that happened to run at the same time. |
+| B7 | `android.allowBackup` is `false` in `app.json` (section 7.3). | Android restores the database file from a backup, but the key in SecureStore cannot come with it. The restored file can never be opened. |
+
+## 2. Glossary
+
+| Term | Meaning |
+|---|---|
+| Row | One record in a synced table, identified by `(table, id)`. |
+| Content column | A column declared in the schema. It is encrypted in Convex. |
+| Sync metadata | `id`, version, deleted flag, per-column clocks, `seq`. Convex can read it. |
+| HLC | Hybrid logical clock. A string that sorts in time order and names the device that made it (section 9.1). |
+| Cell | One content column's value plus the clock of its last write. In Convex a cell is `{ hlc, ct }`, where `ct` is ciphertext. |
+| Tombstone | A deleted row. It has no content, `deleted = true`, and a version equal to the delete clock. |
+| Random-id table | A table whose row ids are random UUID v4. The default kind. |
+| Keyed table | A table that declares `key`. Row ids are derived from the key columns (section 6.2). |
+| Singleton | A table with at most one row, whose id is the literal `'singleton'`. |
+| Append-only table | A random-id table whose rows are never edited after insert. They can only be removed. |
+| Local table | A table that never syncs. It has no clocks, checksums or Convex table. |
+| Id key | 32 random bytes used to derive keyed row ids. It is shared by every device in an account (section 6.3). |
+| Data key (DK) | 32 random bytes that encrypt every cloud value (section 12). |
+| Epoch | A per-account integer. It rises when the cloud copy is wiped or the data key is reset (section 11.6). |
+| `seq` | A per-account counter that Convex stamps on every change it applies. Pull cursors are `seq` values. |
+| Pending | Columns changed on this device and not yet confirmed by Convex. Stored in `_pending`. |
+
+## 3. Package layout
 
 ```
 packages/ayyurdb/
@@ -45,26 +94,30 @@ packages/ayyurdb/
     schema/      createAyyurDBSchema, column builders, Drizzle and Convex generators, schema diff
     clock/       HLC: tick, receive, compare
     merge/       mergeRow, shared by the device and Convex
+    ids/         random ids, keyed id derivation, re-keying
     crypto/      value encryption, key wrapping, local database key
-    store/       opens SQLCipher database, runs migrations, write transactions, change events
+    store/       opens the SQLCipher database, runs migrations, the write queue, change events
     checksum/    row hash, running totals, getChecksum
-    sync/        push queue, pull cursor, reconcile, account flows
+    sync/        push queue, pull cursor, reconcile, epochs, account flows
     tables/      one file per table: its schema and its SDK read and write methods
     react/       AyyurDBProvider, useAyyurQuery, useSyncState
-    convex/      server side: generated tables, merge mutation, pull query, checksum query
+    convex/      server side: generated tables, merge mutation, pull query, checksum query, wipe
   drizzle/       migrations generated by drizzle-kit, committed
+  schema-snapshots/  one JSON snapshot per released schema version, committed
   test/
 convex/          the app's Convex deployment: schema.ts and thin wrappers around @ayyur/db/convex
 ```
 
-`merge`, `clock` and `checksum` are plain TypeScript with no React Native imports, so the app and Convex run the same code. Convex bundles `convex/` with esbuild and imports the package from the workspace.
+`merge`, `clock`, `ids` and `checksum` are plain TypeScript with no React Native imports. They MUST stay that way, because the app and Convex run the same code. Convex bundles `convex/` with esbuild and imports the package from the workspace.
 
-## 3. Schema system
+Nothing outside `packages/ayyurdb` imports Drizzle, `expo-sqlite`, `react-native-libsodium` or `expo-secure-store` for AyyurDB's data. App code uses `@ayyur/db` and `@ayyur/db/react` only. A lint rule (`no-restricted-imports`) enforces this in `src/`.
 
-### 3.1 Declaring
+## 4. Schema system
+
+### 4.1 Declaring
 
 ```ts
-import { createAyyurDBSchema, table, text, integer, boolean, enumOf, json, day } from '@ayyur/db/schema';
+import { createAyyurDBSchema, table, text, integer, boolean, enumOf, json, day, ref } from '@ayyur/db/schema';
 
 export const schema = createAyyurDBSchema({
   version: 3,
@@ -79,34 +132,77 @@ export const schema = createAyyurDBSchema({
       { indexes: [['archived']] },
     ),
     habitLog: table(
-      { habitId: text(), day: day(), done: boolean() },
-      { indexes: [['habitId', 'day']] },
+      { habitId: ref('habit'), day: day(), status: enumOf(['done', 'cleared']) },
+      { key: ['habitId', 'day'] },
+    ),
+    quranReading: table(
+      { day: day(), range: json<{ from: number; to: number }>() },
+      { appendOnly: true, indexes: [['day']] },
+    ),
+    prayerTimes: table(
+      { day: day(), times: json<Record<string, number>>() },
+      { local: true, indexes: [['day']] },
     ),
   },
 });
 ```
 
-Column types: `text`, `integer`, `real`, `boolean`, `day` (a `YYYY-MM-DD` string), `timestamp` (ms since epoch), `enumOf([...])` and `json` (a typed JSON value). Every column is required unless it is `.nullable()` or has a `.default()`.
+### 4.2 Column types
 
-Table options:
+| Builder | Stored in SQLite as | Value in TypeScript | Notes |
+|---|---|---|---|
+| `text()` | TEXT | `string` | The SDK normalises text to Unicode NFC on write. |
+| `integer()` | INTEGER | `number` | Must be a safe integer. Writes outside `Number.MIN_SAFE_INTEGER` to `Number.MAX_SAFE_INTEGER` throw. |
+| `real()` | REAL | `number` | Must be finite. |
+| `boolean()` | INTEGER 0 or 1 | `boolean` | |
+| `day()` | TEXT | `string` | `YYYY-MM-DD`, checked with a regex on write. The SDK treats it as an opaque date. Which day an act belongs to is the data model's rule, not the SDK's. |
+| `timestamp()` | INTEGER | `number` | Milliseconds since the epoch. |
+| `enumOf([...])` | TEXT | union of the values | Writes of other values throw. |
+| `json<T>()` | TEXT | `T` | Serialised with `JSON.stringify`. Replaced whole on merge, never merged inside (rule R4). |
+| `ref('table')` | TEXT | `string` | The id of a row in another synced table. The target MUST be a random-id table or a singleton (rule R8). The schema throws at import time otherwise. |
 
-- `singleton: true`: the table holds at most one row, with the fixed id `'singleton'`. Two devices that each create a profile then merge into one row instead of producing two.
-- `indexes`: local SQLite indexes for reads. Convex has no content indexes, because it can't read the content.
-- `local: true`: the table never syncs and has no Convex table. Use it for caches the device can rebuild, such as computed prayer times.
+Every column is required unless it is `.nullable()` or has a `.default()`.
 
-### 3.2 What it generates
+A serialised value, meaning the JSON text that gets encrypted, MUST NOT exceed 16 KiB. The SDK throws on writes above this. Longer content, such as a long journal entry, has to be split across rows by the data model.
+
+### 4.3 Table kinds and options
+
+A table has exactly one kind. The schema throws at import time if options combine kinds.
+
+| Kind | Option | Id | SDK write methods | Can delete |
+|---|---|---|---|---|
+| Random-id | none | random UUID v4 | `insert`, `update`, `remove` | yes |
+| Append-only | `appendOnly: true` | random UUID v4 | `insert`, `remove` | yes |
+| Keyed | `key: [...]` | derived from key (6.2) | `upsert`, `update` by key | no |
+| Singleton | `singleton: true` | `'singleton'` | `upsert`, `update` | no |
+| Local | `local: true` | any text the table chooses | anything | yes, and no tombstone |
+
+Further options for every kind:
+
+- `indexes: string[][]` adds local SQLite indexes for reads. Convex has no content indexes, because it can't read the content.
+
+Rules for `key`:
+
+- Key columns MUST be `text`, `integer`, `boolean`, `day`, `enumOf` or `ref`. They MUST NOT be nullable. `real`, `timestamp` and `json` are refused, because two phones can write the same fact with slightly different values for them.
+- Key columns can't change after insert. `update` doesn't accept them in its patch type, and throws at runtime if they appear anyway. A different key is a different row.
+- The schema adds a unique local index on the key columns.
+
+Local tables are plain Drizzle tables with an `id` column. They have no `_clocks`, `_version`, `_deleted`, `_extra`, checksum or pending entries. They exist for caches the device can rebuild, such as computed prayer times or streaks.
+
+### 4.4 What it generates
 
 From one schema the generators derive:
 
-1. **Drizzle tables** for SQLite, with the sync columns from 4.1 added. `drizzle-kit generate` (driver `expo`) turns them into SQL migrations in `packages/ayyurdb/drizzle/`, which are committed.
-2. **Convex tables** for `convex/schema.ts`, one per synced table, shaped as in 5.1.
-3. **TypeScript types** for each row and for each table's insert and patch shapes.
+1. **Drizzle tables** for SQLite, with the sync columns from 7.1 added to every synced table. `drizzle-kit generate` with driver `expo` turns them into SQL migrations in `packages/ayyurdb/drizzle/`, which are committed.
+2. **Convex tables** for `convex/schema.ts`, one per synced table, shaped as in 8.1.
+3. **TypeScript types** for each row, for each table's insert and patch shapes, and for each keyed table's key.
+4. **Table metadata** used at runtime: each table's kind, key columns and column types. Convex uses it to validate row ids and column names in `push`.
 
-The tables are built when the schema is imported. No generated source files are checked in apart from the Drizzle migrations.
+The tables are built when the schema is imported. No generated source files are checked in apart from the Drizzle migrations and the schema snapshots.
 
-### 3.3 Evolution
+### 4.5 Evolution
 
-Each released schema has a `version`. A snapshot of each released version is committed, and a test compares the current schema with the previous one.
+Each released schema has a `version`. A snapshot of each released version is committed to `schema-snapshots/`, and a test compares the current schema with the previous snapshot.
 
 Additive changes, allowed at any time:
 
@@ -120,91 +216,190 @@ Breaking changes, which need `minVersion` raised to the new version:
 - changing a column's type
 - making a nullable column required
 - adding or removing an enum value
+- changing a table's kind, or its key columns
 
 The comparison test fails if a breaking change lands without the `minVersion` bump.
 
-Release order is fixed: deploy Convex first, then ship the app. That way the server's tables are always at least as new as any client's.
+Release order is fixed: deploy Convex first, then ship the app. That way the server's tables are always at least as new as any client's. If `push` receives a column or table it doesn't know, it refuses with `serverBehind` (8.3). That only happens if the release order was broken.
 
 Older clients and columns they don't know:
 
 - The server merges per column, so an older client never sends columns it doesn't know and never erases them.
-- When an older client pulls a row, columns it doesn't know are kept locally in the row's `_extra` column as `{ column: { hlc, ct } }`.
-- After the app updates and its migration adds the column, the store decrypts these values into it.
+- When an older client pulls a row, it keeps columns it doesn't know in the row's `_extra` column as `{ column: { hlc, ct } }`. The ciphertext stays encrypted, because the client doesn't know the column's type.
+- Reconcile sends `_extra` cells along with the row's known cells when it pushes a full row.
+- After the app updates and its migration adds the column, the store decrypts these values into it, with their clocks, in one transaction.
 
 `minVersion` is stored in the Convex `meta` table for the deployment. Every push and pull sends the client's schema version. If it is below `minVersion`, the server refuses, and the client sets its sync state to `updateRequired`. Local reads and writes keep working.
 
-## 4. Local store
+## 5. Rules for table design
 
-### 4.1 Row layout
+The sync machinery merges each column on its own and lets the newest write win. That is right for some data and badly wrong for other data. These rules say which is which. The data-model spec MUST follow them, and code review MUST check new tables against them.
+
+**R1. Last write wins must be the right answer for every column.** Before adding a column, imagine two phones changing it while offline and one of the values being thrown away. If losing one is acceptable, as with a setting, a title or a status, the column is fine. If it isn't, the data needs rows instead of a column, as in R2.
+
+**R2. No counters, totals or running sums as columns.** "Pages read today" as an integer column loses an increment whenever two phones add to it before syncing. Record each act as its own row in an append-only table, such as one `quranReading` row per session, and add them up when reading.
+
+**R3. Derived values are computed on the device, never synced.** Streaks, totals, badges and prayer times are computed from the synced rows into local tables or into memory. If they synced, two phones that computed them a moment apart would conflict over values that are both correct.
+
+**R4. A `json` column is replaced whole.** Two phones that each add an item to a list stored in one `json` column lose one of the additions. Use `json` only for a value that one person edits at a time as a unit, such as a reminder settings object. For a list the user edits, use one row per item, with an ordering column.
+
+**R5. If a fact can happen at most once per something, the table is keyed.** One status per prayer per day, one log per habit per day, one fast per day. These MUST be keyed tables, so two phones that record the same fact land on the same row.
+
+**R6. Keyed tables and singletons are never deleted.** A tombstone is permanent and beats any later edit, and a keyed row's id can never change. A deleted keyed row could therefore never be recorded again. Give the table a state column with a neutral value instead, such as `status: enumOf(['done', 'cleared'])`. The SDK enforces this, because these kinds have no `remove` method.
+
+**R7. Undo is done with a column, never by deleting and recreating.** A deleted random-id row can't come back. Recreating it makes a new id, which breaks every `ref` to the old one. A screen that offers undo after "delete" MUST set a column such as `archived` or `hidden`, and only call `remove` once the undo is no longer offered, if at all.
+
+**R8. References point at random-id rows or singletons.** A `ref` column stores another row's id. Keyed row ids change when the device adopts an account's id key (6.4), so a `ref` to a keyed row would break. The schema refuses such a `ref`. To point at a keyed row, store its key columns instead.
+
+**R9. Reads tolerate missing references.** Phone A deletes a habit while phone B logs it. Delete wins, so B's log row now points at a tombstone. Reads MUST handle a `ref` whose target is missing or deleted, usually by hiding the row. A write method that deletes a row SHOULD also delete or archive the rows that refer to it in the same transaction, but reads can't rely on that.
+
+**R10. Columns that only make sense together are written as one value.** Per-column merging can mix one phone's `from` with another phone's `to`. If several values must stay consistent, put them in one `json` column, or put them in an append-only row that never changes.
+
+**R11. Content belongs in content columns.** Anything that says something about the user's practice, including dates, names and statuses, MUST be a content column, so it is encrypted in Convex. Never put it in a row id, a table name or any other metadata field. Table names are visible to the server, so they SHOULD describe a feature, not the user.
+
+## 6. Row ids
+
+### 6.1 Random ids
+
+Random-id and append-only tables use UUID v4 from `expo-crypto`'s random bytes, written in lowercase with dashes. It is v4 rather than v7 so the id doesn't reveal when the row was created.
+
+### 6.2 Keyed ids
+
+A keyed row's id is computed from its table name and key values:
+
+```
+input = JSON.stringify([tableName, keyValue1, keyValue2, ...])   // key values in the order of `key`
+id    = 'k' + hex(first 16 bytes of HMAC-SHA-256(idKey, utf8(input)))
+```
+
+- Values go into `input` exactly as the SDK stores them. Text is NFC-normalised, integers are JSON numbers, booleans are `true` or `false`, and days are `YYYY-MM-DD` strings.
+- The result is `k` followed by 32 lowercase hex characters.
+- HMAC-SHA-256 comes from `@noble/hashes`.
+- `ids.keyedId(idKey, table, key)` is the only function that computes it. Nothing else may.
+
+The hash MUST be keyed. A plain hash of `["habitLog","<habit id>","2026-11-03"]` could be guessed by trying every date, and the row id would then reveal what the encryption hides.
+
+### 6.3 The id key
+
+- On first launch the device generates 32 random bytes and stores them in SecureStore under `ayyurdb.id.key`. Every keyed id on this device is derived with the current id key.
+- When the device joins an account with sync, all devices in the account must use the same id key, or the same fact would get different ids on each phone. The account's id key is stored in the Convex `vault`, encrypted with the data key (12.3).
+- Turning sync on for a new account generates a fresh id key for that account. The device doesn't upload its local one, so the same row ids never appear under two accounts.
+
+### 6.4 Re-keying
+
+When the device adopts a different id key, it re-keys:
+
+1. In one write transaction, for every row of every keyed table, compute the new id from the row's key columns.
+2. Rewrite the row's id. If a row with the new id already exists, which can only happen if local data was already inconsistent, merge the two rows with `mergeRow` and keep one.
+3. Update the checksum totals: subtract each old row hash and add the new one.
+4. Store the new id key in SecureStore.
+
+Re-keying happens before any pull or push in the account flows (11.7), so pulled keyed rows meet local rows that already have the right ids. Re-keying only touches keyed tables. Random ids and `'singleton'` don't change, so `ref` columns stay valid. This is why rule R8 exists.
+
+## 7. Local store
+
+### 7.1 Row layout
 
 Every synced table in SQLite has its content columns plus:
 
 | Column | Meaning |
 |---|---|
-| `id` | Random UUID v4, or `'singleton'`. v4 rather than v7 so the id doesn't reveal when the row was created. |
-| `_clocks` | JSON `{ column: hlc }`: the clock of the last write to each content column. |
+| `id` | A random UUID v4, a keyed id (6.2), or `'singleton'`. |
+| `_clocks` | JSON `{ column: hlc }`, the clock of the last write to each content column. |
 | `_version` | The largest clock in `_clocks`, or the delete clock for a tombstone. |
 | `_deleted` | 0 or 1. |
-| `_extra` | JSON of columns from a newer schema that this version doesn't know (3.3). |
+| `_extra` | JSON of cells from a newer schema that this version doesn't know (4.5). |
 
 Internal tables:
 
 | Table | Purpose |
 |---|---|
-| `_meta` | Device id, last HLC, schema version, pull cursor, sync state. |
-| `_pending` | `(table, id, columns)`: the columns changed locally and not yet confirmed by the server. |
-| `_checksum` | `(table, bucket, total)`: running checksum totals (section 7). |
+| `_meta` | Key-value rows: `deviceId`, `lastHlc`, `schemaVersion`, `cursor`, `epoch`, `userId`, `syncEnabled`, `syncState`. |
+| `_pending` | `(table, id, column, hlc)`, one row per changed column not yet confirmed by Convex. A delete is the column `*`. |
+| `_checksum` | `(table, bucket, total)`, the running checksum totals (section 10). |
 
-### 4.2 Opening
+### 7.2 Keys on the device
+
+| SecureStore key | Holds | Created |
+|---|---|---|
+| `ayyurdb.local.key` | 32 bytes, the SQLCipher key | first launch |
+| `ayyurdb.id.key` | 32 bytes, the current id key | first launch, replaced by re-keying |
+| `ayyurdb.data.key` | 32 bytes, the data key | when the device unlocks an account |
+
+On iOS these entries use SecureStore's "when unlocked, this device only" accessibility, so they never move to another phone through a backup. M0 checks the exact option name against the SDK 57 `expo-secure-store` docs.
+
+### 7.3 Opening
 
 `AyyurDBProvider` opens the database at app start:
 
-1. It reads the local database key from SecureStore. On first launch it generates 32 random bytes and stores them under `ayyurdb.local.key`.
-2. It opens `ayyur.db` with `enableChangeListener: false`. Change events come from the SDK's own write path instead (4.4).
-3. It runs `PRAGMA key = "x'<hex>'"` straight after opening, as the expo-sqlite docs require.
+1. It reads `ayyurdb.local.key`.
+   - If the key is missing and `ayyur.db` doesn't exist, this is a first launch. It generates the local key and the id key and creates the database.
+   - If the key is missing but `ayyur.db` exists, the file came from a backup without its key and can never be opened. The provider deletes the file and starts fresh. If sync was on, signing in again restores the data from Convex.
+   - If the key exists but opening fails, the provider MUST NOT delete anything. It reports a fatal store error to the app, which shows it and offers support contact. Deleting here could destroy the only copy of the user's data.
+2. It opens `ayyur.db` with `enableChangeListener: false`. Change events come from the SDK's own write path instead (7.6).
+3. It runs `PRAGMA key = "x'<hex>'"` straight after opening, before any other statement, as the expo-sqlite docs require.
 4. It runs the pending Drizzle migrations, then moves `_extra` values into any columns those migrations added.
+5. It renders children only after these steps succeed. The splash screen stays up until then.
 
-SQLCipher is turned on with `useSQLCipher: true` in the `expo-sqlite` config plugin. It doesn't work in Expo Go.
+SQLCipher is turned on with `useSQLCipher: true` in the `expo-sqlite` config plugin in `app.json`. It doesn't work in Expo Go. From M1 onwards the app runs in a development build only.
 
-The local key is separate from the cloud data key, so signing out or losing the passphrase never locks the user out of their own phone.
+`app.json` sets `android.allowBackup: false` (decision B7). This turns off Android backup for the whole app, including AsyncStorage. That is fine, because nothing in the app is worth restoring without its keys.
 
-If the database file is backed up by Android without its SecureStore key, it can't be opened after a restore. In that case the SDK starts a fresh database, and cloud sync (if on) restores the data. Excluding the file from Android backup is listed in section 12.
+The local key is separate from the data key, so signing out or forgetting the passphrase never locks the user out of their own phone.
 
-### 4.3 Writes
+### 7.4 The write queue
 
-Every write goes through an SDK method and runs in one transaction:
+Every write goes through one queue in JavaScript. That includes app writes, sync applying pulled rows, re-keying and migrations. The queue runs one item at a time. Each item is one synchronous transaction (`withTransactionSync`).
 
-1. It ticks the HLC once for the transaction.
-2. It writes the values and sets the clock of each changed column in `_clocks` to the new tick. It then updates `_version`.
-3. It updates the checksum totals for the row's table and bucket: it subtracts the old row hash and adds the new one.
-4. It records the changed columns in `_pending`, but only if sync is on.
+- Synchronous transactions mean no other query can run inside the transaction, which `withTransactionAsync` doesn't guarantee (decision B6).
+- A write transaction SHOULD finish in under 8 ms on the Itel S23, half a frame. Work bigger than that, such as a pulled page or re-keying thousands of rows, MUST be split into several transactions, with the queue yielding to the UI between them.
+- Encryption and decryption happen outside the transaction where possible. Sync decrypts a chunk, then opens the transaction to apply it.
 
-A delete sets `_deleted = 1`, clears every content column, sets `_version` to the delete tick, updates the checksum, and queues the delete.
+Inside one write transaction, for each row it changes:
 
-### 4.4 Reads and live hooks
+1. Tick the HLC once for the whole transaction (9.2).
+2. Write the values, and set each changed column's clock in `_clocks` to the new tick. A column whose new value equals its old value is not changed and keeps its clock. Update `_version`.
+3. Update the checksum totals for the row's table and bucket. Subtract the old row hash and add the new one.
+4. If sync is on, add the changed columns to `_pending`, replacing any older pending entry for the same column.
+5. Save `lastHlc` in `_meta`.
+6. Record the table name for the change event.
+
+### 7.5 Deletes
+
+`remove(id)` exists only on random-id and append-only tables. In one write transaction it:
+
+1. Ticks the HLC.
+2. Sets `_deleted = 1`, sets every content column to null or its default, empties `_clocks` and `_extra`, and sets `_version` to the delete tick.
+3. Updates the checksum.
+4. If sync is on, replaces every pending entry for the row with one `*` entry carrying the delete tick.
+
+Removing a row that is already a tombstone does nothing. Removing an id that doesn't exist throws.
+
+### 7.6 Reads and live hooks
 
 Each table file in `tables/` declares its SDK methods. Reads say which tables they touch:
 
 ```ts
-export const prayerLog = {
-  forDay: read(['prayerLog'], (q, day: string) => q.select().from(t.prayerLog).where(...)),
-  log: write((tx, input: PrayerLogInput) => tx.upsert('prayerLog', input)),
-  remove: write((tx, id: string) => tx.remove('prayerLog', id)),
+export const habitLog = {
+  forDay: read(['habitLog', 'habit'], (q, day: string) => q.select().from(t.habitLog).where(...)),
+  set: write((tx, input: { habitId: string; day: string; status: 'done' | 'cleared' }) => tx.upsert('habitLog', input)),
 };
 ```
 
 ```tsx
-const entries = useAyyurQuery(db.prayerLog.forDay, today);
+const logs = useAyyurQuery(db.habitLog.forDay, today);
 ```
 
-- Reads hide tombstones.
-- After every committed transaction, including ones applied by sync, the store emits the names of the tables it changed.
-- `useAyyurQuery` re-runs only when one of its tables is in that list.
+- Reads use expo-sqlite's async API, so a read never blocks the JS thread.
+- Reads hide tombstones. A read that needs them doesn't exist in app code. Only sync and checksum code see tombstones.
+- After each committed write transaction, the store adds the changed table names to a set. It emits the set once, in a microtask after the commit. While sync is applying a pulled page, emission waits until the page's last chunk commits, so a 200-row page causes one re-render, not four.
+- `useAyyurQuery` re-runs only when one of its declared tables is in the emitted set.
+- `useAyyurQuery` returns `undefined` until the first result. After that, it keeps the previous result while re-running. It returns a new array only if a row's `id` or `_version` differs, so unchanged results don't re-render.
 - Drizzle and the raw database are never exported from the package.
 
-## 5. Convex side
+## 8. Convex side
 
-### 5.1 Tables
+### 8.1 Tables
 
 Every synced table becomes a Convex table:
 
@@ -218,7 +413,7 @@ habitLog: defineTable({
   device: v.string(),          // device that last changed the row
   habitId: v.optional(cell),   // cell = v.object({ hlc: v.string(), ct: v.bytes() })
   day: v.optional(cell),
-  done: v.optional(cell),
+  status: v.optional(cell),
 })
   .index('by_user_row', ['userId', 'rowId'])
   .index('by_user_seq', ['userId', 'seq']),
@@ -228,188 +423,345 @@ Shared tables:
 
 | Table | Holds |
 |---|---|
-| `meta` | Per deployment: `minVersion`. |
-| `vault` | Per user: the wrapped data key twice (passphrase and recovery code), the KDF salt and parameters, and the key version. |
-| `counters` | Per user: the last `seq` handed out. |
-| `checksums` | Per user, table and bucket: the running total. |
+| `meta` | One document per deployment: `minVersion`. |
+| `account` | One per user: `epoch`, `seq` (the last value handed out), `wiping` (`null`, `'delete'` or `'reset'`), `lastWipe` (`'delete'`, `'reset'` or `null`). It survives a wipe and is removed only when the Clerk user is deleted. |
+| `vault` | One per user: the data key wrapped twice (passphrase and recovery code), the KDF salt and parameters, `keyVersion`, the id key encrypted with the data key, and the `epoch` it was created in. |
+| `checksums` | One per user, table and bucket: the running total. |
 
-### 5.2 Functions
+### 8.2 Request envelope and refusals
 
-All functions take the user from `ctx.auth.getUserIdentity()` and never from arguments.
+Every function except `account.status` takes the user from `ctx.auth.getUserIdentity()` and never from its arguments. A call without an identity throws `unauthenticated`.
 
-| Function | Kind | Does |
+`push`, `changes`, `checksum`, `bucketRows` and `rows` also take `{ schemaVersion, epoch }`. Before anything else they check these, in this order:
+
+| Check | Refusal code | What the device does |
 |---|---|---|
-| `push` | mutation | Merges a batch of row changes (6.2), stamps `seq`, updates checksums. At most 100 rows per call. |
-| `changes` | query | Rows with `seq` greater than the cursor, across all tables, in pages of 200. Clients subscribe to it. |
-| `checksum` | query | `getChecksum` for this user, by table or by bucket. |
-| `bucketRows` | query | `(rowId, version, deleted)` for one table and bucket, used by reconcile. |
-| `rows` | query | Full rows for a list of ids, used by reconcile. |
-| `vault.get`, `vault.put` | query, mutation | Read and replace the wrapped keys. |
-| `wipe` | mutation | Deletes all of the user's rows, checksums, counters and vault. It works in scheduled batches to stay under Convex limits. |
-| `clerkWebhook` | HTTP action | On `user.deleted`, verifies the signature and schedules `wipe`. |
+| `schemaVersion < meta.minVersion` | `updateRequired` | State `updateRequired`. Stops syncing until the app updates. |
+| `account.wiping` is set | `wiping` | Waits and retries with backoff. |
+| no `vault` | `noVault` | Runs the epoch-change handling in 11.6. |
+| `epoch !== account.epoch` | `epochChanged` | Runs the epoch-change handling in 11.6. |
 
-### 5.3 Why pulling uses a server counter
+`push` adds three more:
+
+| Check | Refusal code | What the device does |
+|---|---|---|
+| any clock in the batch is more than 5 minutes ahead of server time | `clockAhead` | Runs the clock repair in 9.4. |
+| a table or column the server's schema doesn't have | `serverBehind` | State `error`. Logs it. The release order was broken. |
+| more than 100 rows, an id of the wrong form for its table, a non-deleted row with no cells, or a ciphertext over 17 KiB | `badRequest` | State `error`. Logs it. This is a client bug. |
+
+Refusals are thrown as `ConvexError` with `{ code }`. A `clockAhead` refusal also carries `serverTime`. A refused call changes nothing.
+
+### 8.3 Functions
+
+| Function | Kind | Arguments | Returns |
+|---|---|---|---|
+| `push` | mutation | envelope, `device`, `rows: WireRow[]` (at most 100) | `{ seq, serverTime }` |
+| `changes` | query | envelope, `cursor` | `{ rows: WireRow[], nextCursor }`, at most 200 rows |
+| `checksum` | query | envelope, optional `table` | `{ seq, tables }` or `{ seq, buckets }` |
+| `bucketRows` | query | envelope, `table`, `bucket` | `{ seq, rows: { rowId, version, deleted }[] }` |
+| `rows` | query | envelope, `table`, `rowIds` (at most 100) | `WireRow[]` |
+| `account.status` | query | none | `{ epoch, hasVault, wiping, lastWipe }`, or `null` without an identity |
+| `vault.get` | query | none | the vault, or `null` |
+| `vault.create` | mutation | the new vault | `{ epoch, serverTime }`. Fails with `vaultExists` if one exists, or `wiping` during a wipe. |
+| `vault.update` | mutation | `epoch`, `keyVersion`, new wrapped copies | Fails with `epochChanged` or `staleVault` if `keyVersion` doesn't match. |
+| `wipe` | mutation | `reason: 'delete' \| 'reset'` | nothing; the work continues in scheduled batches |
+| `clerkWebhook` | HTTP action | Clerk event | On `user.deleted`, verifies the signature and schedules a wipe that also removes `account`. |
+
+A `WireRow` is `{ table, rowId, version, deleted, cells: { [column]: { hlc, ct } }, seq? }`. A tombstone has `deleted: true`, empty `cells`, and its delete clock as `version`.
+
+**`push`**, for each incoming row, inside the one mutation:
+
+1. Load the stored row by `by_user_row`.
+2. If there is none, the merged row is the incoming row.
+3. Otherwise the merged row is `mergeRow(stored, incoming)` (9.5).
+4. If the merged row equals the stored row, meaning the same `deleted`, `version` and cell clocks, write nothing and stamp no `seq`.
+5. Otherwise take the next `account.seq`, write the merged row with that `seq` and `device`, and update the `checksums` total for its bucket: subtract the old row hash and add the new one.
+
+The response's `serverTime` is `Date.now()` in the mutation.
+
+**`changes`** reads, for each synced table, up to 200 rows from `by_user_seq` with `seq > cursor`. It merges the lists, sorts them by `seq`, and returns the 200 with the lowest `seq`. `nextCursor` is the highest `seq` returned, or `cursor` if none. Taking the lowest across all tables matters. A table with low `seq` values left out of the page would be skipped forever once the cursor moved past them.
+
+**`checksum`** and **`bucketRows`** return `account.seq` alongside the data. Convex reads a query from one consistent snapshot, so the totals match exactly that `seq`.
+
+### 8.4 Why pulling uses a server counter
 
 Devices pull "everything changed since my cursor". That cursor can't be an HLC.
 
-Suppose a device with a slow clock uploads after another device has already pulled past that time. Its row would carry an older clock and never be pulled. So every change the server applies takes the next value of the user's counter in `counters`, inside the same Convex transaction, and the row stores it as `seq`. Cursors are `seq` values.
+Suppose a device with a slow clock uploads after another device has already pulled past that time. Its row would carry an older clock and never be pulled. So every change the server applies takes the next value of the user's counter in `account`, inside the same Convex transaction, and the row stores it as `seq`. Cursors are `seq` values.
 
-## 6. Clocks and merging
+### 8.5 Wipe
 
-### 6.1 HLC
+`wipe(reason)` runs as:
 
-A clock is a string that sorts in time order: `<ms: 12 hex>:<counter: 4 hex>:<device: 16 hex>`.
+1. One mutation sets `account.epoch += 1`, sets `account.wiping = reason`, and deletes the `vault`. From this moment every sync call from every device is refused, before any row is touched.
+2. Scheduled mutations delete the user's rows from every synced table and their `checksums`, in batches small enough to stay under Convex's per-mutation limits.
+3. The last batch sets `account.wiping = null` and `account.lastWipe = reason`. `account.seq` is not reset, so cursors never go backwards.
 
-- **Device id:** 8 random bytes, made on first launch and kept in `_meta`.
-- **Ticking:** standard HLC rules. A local tick takes `max(last, now)` and bumps the counter when the time hasn't moved. Receiving a remote clock folds it into the local clock.
-- **Clocks far ahead:** a remote clock more than 24 hours ahead of the device's time is still applied for merging. It doesn't drag the local clock forward, and the event is logged.
-- **No ties:** the device id is part of every clock, so two different writes never compare equal.
+A wipe for a deleted Clerk user does the same and then deletes `account`.
 
-### 6.2 Merge rule
+## 9. Clocks and merging
 
-One function, `mergeRow(stored, incoming)`, in `@ayyur/db/merge`, used by both the `push` mutation and the device when it applies pulled rows:
+### 9.1 Format
 
-1. If neither side is deleted, compare each column's clock and keep the newer `{ hlc, value }`. A column one side lacks is taken from the other. `version` becomes the largest column clock.
-2. If either side is deleted, the result is a tombstone: no content, `deleted = true`, and `version` = the larger of the delete clocks. An edit never brings a deleted row back, whatever its clock.
+A clock is a string that sorts in time order:
 
-On the server the values are ciphertext and the rule only compares clocks, so it never needs the key. The rule is deterministic, commutative and idempotent, so devices that have seen the same changes hold the same rows in any order. A convergence test checks this (section 10).
+```
+<ms: 12 lowercase hex>:<counter: 4 lowercase hex>:<device: 16 lowercase hex>
+```
 
-## 7. Checksum system
+- `ms` is milliseconds since the epoch.
+- The device id is 8 random bytes, made on first launch and kept in `_meta`.
+- Clocks compare as plain strings. The device id is part of every clock, so two writes from different devices never compare equal, and the merge always has a winner.
 
-`getChecksum(db, scope?)`:
+### 9.2 Ticking
 
-- `getChecksum(db)` → `{ [table]: hash }`
-- `getChecksum(db, { table })` → `{ [bucket 0..15]: hash }`
+`tick()` runs once per write transaction:
+
+```
+now = Date.now()
+if now > last.ms:           next = (now, 0)
+else if last.counter < 0xffff: next = (last.ms, last.counter + 1)
+else:                       next = (last.ms + 1, 0)
+last = next
+```
+
+### 9.3 Receiving
+
+The device folds other clocks into `last`, so its next write sorts after everything it has seen:
+
+- For each clock in a pulled row: `last = max(last, (remote.ms, remote.counter))`.
+- For the `serverTime` returned by `push` and `vault.create`: `last = max(last, (serverTime, 0))`. A phone whose clock runs slow still writes clocks at least as new as the server's time after each push.
+- A remote clock more than 5 minutes ahead of the device's own `Date.now()` is still used for merging, but it is not folded into `last`. Convex refuses such clocks (9.4), so one should never arrive. If one does, the device logs it.
+
+### 9.4 Clocks that run ahead
+
+Convex refuses a `push` containing any clock more than 5 minutes ahead of its own time, with `clockAhead` (decision B4). The refused columns stay pending.
+
+On `clockAhead` the device:
+
+1. Reads `serverTime` from the refusal and compares it with its own `Date.now()`.
+2. If its own time is still more than 5 minutes ahead, it sets state `clockWrong` and retries on the next trigger. The app tells the user their phone's date or time is wrong. Local reads and writes keep working.
+3. Once its own time is within 5 minutes, it repairs. In one write transaction it sets `last` to `(max(serverTime, now), 0)` and re-stamps every pending column with fresh ticks. That means updating `_clocks`, `_version`, the checksum and `_pending`. Then it pushes.
+
+Re-stamping is safe. Convex never accepted those clocks, so no other device has seen them. On this device they were already the newest values, and after re-stamping they still are.
+
+### 9.5 Merge rule
+
+One function, `mergeRow(a, b)`, in `@ayyur/db/merge`. Both the `push` mutation and the device, when it applies pulled rows, use it:
+
+```
+if a.deleted or b.deleted:
+  return { deleted: true, cells: {}, version: max(version of each side that is deleted) }
+cells = {}
+for each column in a.cells ∪ b.cells:
+  cells[column] = whichever of a.cells[column], b.cells[column] has the larger hlc   // a missing cell loses
+return { deleted: false, cells, version: max(hlc of every cell) }
+```
+
+- An edit never brings a deleted row back, whatever its clock (decision 6).
+- On the server the cells hold ciphertext and the rule only compares clocks, so it never needs a key.
+- On the device, `cells` covers both the known columns and `_extra`.
+- The rule is deterministic, commutative, associative and idempotent. Devices that have seen the same changes hold the same rows, whatever order the changes arrived in. The convergence test checks this (section 14).
+
+## 10. Checksum system
+
+`getChecksum(store, scope?)`:
+
+- `getChecksum(store)` returns `{ [table]: hash }`.
+- `getChecksum(store, { table })` returns `{ [bucket 0..15]: hash }`.
 
 There is one implementation with two storage adapters, SQLite and Convex. It only reads. Deciding what a mismatch means is the sync system's job.
 
-- **Row hash:** the first 16 bytes of `SHA-256(table ‖ 0x00 ‖ id ‖ 0x00 ‖ version ‖ 0x00 ‖ deleted)`, read as a 128-bit integer.
-- **Bucket:** the first 4 bits of `SHA-256(id)`. Hashing rather than taking the first character of the id keeps fixed ids like `'singleton'` spread evenly.
-- **Totals:** each bucket total is the sum of its row hashes mod 2^128, stored as hex. A table's hash is the sum of its bucket totals. Writes add the new row hash and subtract the old one in the same transaction as the write (4.3, and the `push` mutation), so a read never scans rows.
-- **Hash function:** SHA-256 comes from `@noble/hashes`, so the phone and Convex run identical code.
+- **Row hash.** The first 16 bytes of `SHA-256(table ‖ 0x00 ‖ id ‖ 0x00 ‖ version ‖ 0x00 ‖ deleted)`, read as a 128-bit integer. `deleted` is the byte `0x30` or `0x31`, ASCII `0` or `1`.
+- **Bucket.** The first 4 bits of `SHA-256(id)`. Hashing the id, rather than taking its first character, keeps fixed ids like `'singleton'` and keyed ids spread evenly.
+- **Totals.** Each bucket total is the sum of its row hashes mod 2^128, stored as 32 hex characters. A table's hash is the sum of its bucket totals mod 2^128. Writes add the new row hash and subtract the old one in the same transaction as the write (7.4 and `push`), so a read never scans rows.
+- **Scope.** Only synced tables have checksums. Local tables have none.
+- **Hash function.** SHA-256 comes from `@noble/hashes`, so the phone and Convex run identical code.
 
 Encrypted values aren't hashed, because encrypting the same value twice gives different bytes. A version is assigned once per write, so the same `(id, version, deleted)` on both sides means the same content.
 
-The checksum is for catching sync bugs. It isn't tamper-proof, because the server holds both its data and its totals. Section 9 says what that means for the privacy claims.
+The checksum is for catching sync bugs. It isn't tamper-proof, because the server holds both its data and its totals. Section 12.5 says what that means for the privacy claims.
 
-## 8. Sync system
+## 11. Sync system
 
-### 8.1 States
+### 11.1 States
 
-`useSyncState()` returns one of these, with the time of the last successful sync:
+`useSyncState()` returns `{ state, lastSyncedAt, notice }`.
 
 | State | Meaning |
 |---|---|
 | `off` | No account, or sync turned off. |
-| `locked` | Signed in, but no data key on this device yet: the passphrase or recovery code is needed. |
-| `syncing` | Pushing or pulling. |
+| `locked` | Signed in, but this device has no data key yet. It needs the passphrase or the recovery code. |
+| `syncing` | Pushing, pulling or reconciling. |
 | `idle` | Caught up. |
 | `offline` | Can't reach Convex. |
 | `updateRequired` | The app's schema is below the server's `minVersion`. |
-| `error` | Reconcile failed 3 times. Shown quietly, retried on the next trigger. |
+| `clockWrong` | This phone's clock is more than 5 minutes ahead of the server's (9.4). |
+| `error` | Reconcile failed 3 times, or Convex refused with `serverBehind` or `badRequest`. Shown quietly, retried on the next trigger. |
 
-### 8.2 Push
+`notice` is `null`, `'cloudDeleted'` or `'keyChanged'`. It tells the UI to explain, once, why sync stopped (11.6). The UI clears it with `dismissSyncNotice()`.
+
+Local reads and writes work in every state.
+
+### 11.2 Triggers
+
+Sync runs:
+
+- push, 2 seconds after the last write that added to `_pending`
+- pull, continuously through the live subscription while the app is in the foreground and unlocked
+- reconcile, on launch, when the app returns to the foreground, and after each successful push
+
+Nothing runs in the background (section 18). When the app goes to the background, sync finishes the request in flight and stops. The subscription closes.
+
+### 11.3 Push
 
 1. A write that adds to `_pending` starts a 2-second timer. Each further write restarts it.
-2. When the timer fires, sync reads the pending rows. For each changed column it sends `{ hlc, ct }`, encrypted as in 9.2. Deletes are sent as `deleted: true` with their clock.
+2. When the timer fires, sync reads the pending entries. For each changed column it sends `{ hlc, ct }`, encrypted as in 12.2. A row whose pending entry is `*` is sent as a tombstone.
 3. It sends batches of up to 100 rows to `push`.
-4. When a batch is accepted, sync removes a pending column only if its clock still matches what was sent. A column edited again while the batch was in flight stays pending.
-5. On a network error, the pending entries stay and sync retries with backoff: 2 s, 4 s, 8 s, up to 60 s.
+4. When a batch is accepted, sync removes a pending entry only if its clock still matches what was sent. A column edited again while the batch was in flight stays pending.
+5. It folds `serverTime` into the clock (9.3).
+6. On a network error, the pending entries stay, and sync retries with backoff: 2 s, 4 s, 8 s, up to 60 s.
+7. On a refusal, it follows the table in 8.2.
 
-### 8.3 Pull
+### 11.4 Pull
 
 - While the app is in the foreground and unlocked, sync keeps one live subscription to `changes(cursor)`.
-- For each page it decrypts the cells and checks each value's associated data (9.2). It then runs `mergeRow` with the local row and updates `_clocks`, `_version`, the checksum and `_extra`.
-- It advances the cursor to the page's highest `seq`, all in one transaction.
+- For each page, sync works in chunks of 50 rows:
+  1. Decrypt the chunk's cells and check each value's associated data (12.2), outside any transaction.
+  2. In one write transaction, merge each row with the local row using `mergeRow`, and update `_clocks`, `_version`, `_extra`, the content columns and the checksum. Remove pending entries whose clock is now older than the stored clock for that column, since pushing them would change nothing.
+  3. Yield to the UI before the next chunk.
+- The cursor moves to `nextCursor` in the same transaction as the page's last chunk. If the app stops halfway through a page, the next run applies the earlier chunks again, which changes nothing, because merging is idempotent.
+- Change events for the page are emitted once, after the last chunk (7.6).
 - Pulled rows are never added to `_pending`.
 - The device's own pushes come back through the subscription too. Merging them again changes nothing.
-- Decryption is native but synchronous. Pages are applied in chunks of 50 rows, yielding to the UI between chunks, so the low-end Android test phone doesn't stutter during a large first pull.
 
-### 8.4 Reconcile
+### 11.5 Reconcile
 
-The sync system compares checksums on launch, when the app returns to the foreground, and after each successful push. This step is `ReconcileDB(Convex, Local)` in the diagram.
+Reconcile compares checksums and repairs the rows that differ. It is `ReconcileDB(Convex, Local)` from the diagram, and the only way data the server has never seen gets uploaded. There is no separate "first upload" path.
 
-1. It compares `getChecksum(local)` with `getChecksum(convex)`. If every table matches, it stops.
-2. For each table that differs, it compares the 16 bucket hashes.
-3. For each bucket that differs, it fetches `bucketRows` and compares them with the local `(id, version, deleted)` list.
-   - Rows newer locally, or missing on the server, are pushed as full rows: every column with its clock.
-   - Rows newer on the server, or missing locally, are fetched with `rows` and merged.
-4. It compares the checksums again. If they still differ after 3 rounds, it logs the table and bucket, sets `error`, and waits for the next trigger.
+Preconditions, checked before step 1 and again before each later round:
 
-Reconcile is also how a device uploads data the server has never seen, for example after signing in with local data (8.5). There is no separate "first upload" path.
+- No push is in flight, and `_pending` is empty. If it isn't empty, push first.
+- Sync has `checksum`'s `seq` from the server, and the local cursor equals it. If the cursor is behind, wait for the pull to reach it, up to 30 seconds, then fetch the server checksum again. If the cursor still lags after that, stop and try at the next trigger.
 
-### 8.5 Account flows
+These preconditions are decision B5. Comparing checksums taken at different points would report differences that are only lag.
+
+Steps:
+
+1. Compare `getChecksum(local)` with the server's `checksum`. If every table matches, stop. State `idle`.
+2. For each table that differs, compare the 16 bucket hashes.
+3. For each bucket that differs, fetch `bucketRows` and compare them with the local `(id, version, deleted)` list.
+   - A row only on the device is pushed as a full row: every cell with its clock, including `_extra` cells.
+   - A row only on the server is fetched with `rows` and merged locally.
+   - A row on both sides with a different `version` or `deleted` is fetched with `rows`, merged locally, and the merged full row is pushed. With per-column merging, neither side's row is "newer" as a whole. Each may hold some newer columns. Doing both is safe because merging is idempotent.
+4. Check the preconditions and compare again. If the checksums still differ after 3 rounds, log the table and bucket, set state `error`, and wait for the next trigger.
+
+### 11.6 Epochs
+
+The device keeps the account's `epoch` in `_meta`. Every sync call sends it.
+
+On `epochChanged` or `noVault`, the device:
+
+1. Stops syncing and closes the subscription.
+2. Deletes `ayyurdb.data.key` and clears `cursor` and `_pending`. Local data stays.
+3. Calls `account.status`.
+   - If there is no vault and `lastWipe` is `'delete'`, the cloud copy was deleted from another device. State `off`, notice `'cloudDeleted'`. The device does not upload anything until the user turns sync on again.
+   - If there is a vault, the data key was reset from another device. State `locked`, notice `'keyChanged'`. After the user unlocks with the new passphrase, the normal sign-in flow runs, and reconcile uploads this device's data into the new key.
+   - If a wipe is in progress, wait and call `account.status` again.
+
+This is decision B3. Without it, phone B would upload everything again after phone A deleted the cloud copy.
+
+### 11.7 Account flows
 
 All flows use Clerk for identity. Convex authenticates with the Clerk JWT.
 
-**Turning sync on for a new account** (no `vault` row yet):
+**Turning sync on for a new account**, when `account.status` shows no vault:
 
 1. The user sets a passphrase.
-2. Sync generates the data key and a recovery code, and shows the code once.
-3. It wraps the key twice, puts the vault in Convex, and keeps the key in SecureStore.
-4. It runs reconcile, which uploads everything.
+2. Sync generates the data key, a recovery code and a fresh id key, and shows the recovery code once.
+3. It re-keys local keyed rows with the new id key (6.4).
+4. It wraps the data key twice, encrypts the id key, and calls `vault.create`. If that fails with `vaultExists`, another device created the vault first. Sync discards its keys and switches to the next flow.
+5. It stores the data key in SecureStore and the returned `epoch` in `_meta`.
+6. It runs reconcile, which uploads everything.
 
-**Signing in to an account that already has data:**
+**Signing in to an account that already has a vault:**
 
 1. The state is `locked` until the user enters the passphrase or the recovery code.
-2. Sync unwraps the key and keeps it in SecureStore.
-3. It pulls from cursor 0, then reconciles.
+2. Sync unwraps the data key, decrypts the id key, and stores both in SecureStore.
+3. It re-keys local keyed rows with the account's id key (6.4).
+4. It stores the vault's `epoch`, pulls from cursor 0, then reconciles.
 
 Local rows merge with the account's by the normal rule. Singleton rows merge column by column. Nothing on the device is discarded.
 
 **Signing out:**
 
 - Sync stops.
-- The data key, the Clerk session, the cursor and `_pending` are cleared.
-- Local data stays and the app carries on, now local-only.
+- The data key, the Clerk session, the cursor, the epoch and `_pending` are cleared.
+- The id key stays. Local keyed rows were derived with it, and new upserts must find them.
+- Local data stays, and the app carries on local-only.
 
-**Turning sync off:** same as signing out, plus an offer: "Delete my cloud copy". Accepting calls `wipe`.
+**Turning sync off:** the same as signing out, plus an offer: "Delete my cloud copy". Accepting calls `wipe('delete')`.
+
+**Changing the passphrase:** a device that holds the data key rewraps it with the new passphrase and calls `vault.update`. It doesn't need the old passphrase. The data is untouched and the epoch stays.
+
+**Unlocking with the recovery code:** the user must then set a new passphrase, and a new recovery code replaces the old one, through `vault.update`. The epoch stays.
+
+**Starting over when every key is lost:** a signed-in user who is `locked` and has neither the passphrase nor the recovery code can choose "Start over with an empty cloud copy". This calls `wipe('reset')`, then runs "Turning sync on for a new account". The old cloud data is gone for good. Other devices see `'keyChanged'` and upload their local data once unlocked with the new passphrase.
 
 **Deleting the account:**
 
-- Clerk sends `user.deleted` to `clerkWebhook`, which wipes the user's Convex data.
+- Clerk sends `user.deleted` to `clerkWebhook`, which wipes the user's Convex data and their `account` row.
+- Each device's Clerk session stops working, and the device runs the sign-out flow.
 - Whether local data is also removed is a UI question for the Product thread.
 
-## 9. Encryption and keys
+## 12. Encryption and keys
 
-### 9.1 Keys
+### 12.1 Keys
 
 | Key | Where it lives | Protects |
 |---|---|---|
-| Local database key | SecureStore, this device only | The SQLite file (SQLCipher) |
-| Data key (DK) | SecureStore on each unlocked device; wrapped copies in Convex `vault` | Every cloud value |
+| Local database key | SecureStore, this device only | The SQLite file, through SQLCipher |
+| Id key | SecureStore on each device; encrypted with the data key in `vault` | Row ids of keyed tables, from guessing |
+| Data key (DK) | SecureStore on each unlocked device; wrapped copies in `vault` | Every cloud value and the id key |
 | Passphrase key | Never stored. Derived with Argon2id from the passphrase and a random 16-byte salt | Wrapped DK copy 1 |
-| Recovery key | Never stored. Derived with HKDF-SHA-256 from a 128-bit recovery code, shown once as 26 base32 characters in groups | Wrapped DK copy 2 |
+| Recovery key | Never stored. Derived with HKDF-SHA-256 from a 128-bit recovery code | Wrapped DK copy 2 |
 
-- **Argon2id parameters:** set so a derivation takes about 1 second on the Itel S23. The parameters are stored in the vault so they can be raised later.
-- **Changing the passphrase:** this rewraps the DK; the data isn't touched. A device that already holds the DK can set a new passphrase without the old one.
-- **Using the recovery code:** the user must set a new passphrase, and a new recovery code replaces the old one.
-- **Lost keys:** if every device is lost, and the passphrase and the recovery code are both forgotten, the cloud copy can't be read by anyone, including Ayyur. The UI must say this plainly when sync is turned on.
+- **Argon2id parameters.** Set so one derivation takes about 1 second on the Itel S23. The parameters are stored in the vault so they can be raised later.
+- **Recovery code.** 128 random bits, written as 26 Crockford base32 characters. The UI decides how to group them for reading. Parsing ignores spaces, dashes and case, and reads `I` and `L` as `1` and `O` as `0`.
+- **Lost keys.** If every device is lost and both the passphrase and the recovery code are forgotten, nobody can read the cloud copy, including Ayyur. The UI MUST say this plainly when sync is turned on.
 
-### 9.2 Values
+### 12.2 Values
 
-- **Cipher:** each cell value is serialized to JSON and encrypted with XChaCha20-Poly1305 using the DK and a random 24-byte nonce.
-- **Associated data:** `userId ‖ table ‖ rowId ‖ column ‖ hlc` is bound in, so the server can't move a value to another row, column or user, or pair it with a different clock, without decryption failing.
-- **Stored bytes:** `0x01 (format version) ‖ nonce ‖ ciphertext and tag`.
-- **Failures:** if a value fails to decrypt, sync rejects it, logs the location and treats the row as differing, so reconcile repairs it.
+- **Cipher.** Each cell value is serialised to JSON and encrypted with XChaCha20-Poly1305, using the data key and a random 24-byte nonce.
+- **Associated data.** `"ayyur.cell.v1" ‖ 0x00 ‖ userId ‖ 0x00 ‖ table ‖ 0x00 ‖ rowId ‖ 0x00 ‖ column ‖ 0x00 ‖ hlc`. Because of this, the server can't move a value to another row, column or user, or pair it with a different clock, without decryption failing.
+- **Stored bytes.** `0x01 (format version) ‖ nonce ‖ ciphertext and tag`.
+- **Failures.** If a value fails to decrypt, sync rejects that row, logs the table, row and column, and treats the row as differing, so reconcile repairs it.
 
-### 9.3 Library
+### 12.3 The vault
+
+- Each wrapped DK copy is the DK encrypted with XChaCha20-Poly1305 under the passphrase key or the recovery key, with associated data `"ayyur.vault.v1" ‖ 0x00 ‖ userId ‖ 0x00 ‖ "passphrase"` or `"recovery"`.
+- The id key is encrypted with the DK, with associated data `"ayyur.idkey.v1" ‖ 0x00 ‖ userId`.
+- `keyVersion` rises on every `vault.update`. An update with an old `keyVersion` fails with `staleVault`, so two devices changing the passphrase at once can't overwrite each other silently.
+
+### 12.4 Library
 
 - `react-native-libsodium` is the planned library. It has an Expo config plugin and exposes `crypto_aead_xchacha20poly1305_ietf_*`.
-- Its docs don't confirm that `crypto_pwhash` (Argon2id) is available on native iOS and Android. This must be checked on the device before it is chosen (section 12).
-- If it isn't available, Argon2id comes from a separate native module and libsodium stays for the encryption itself.
+- Its docs don't confirm that `crypto_pwhash` (Argon2id) works on native iOS and Android. M0 checks this on the Itel S23 before the library is chosen.
+- If it doesn't work, Argon2id comes from a separate native module, and libsodium stays for the encryption itself.
+- HMAC, HKDF and SHA-256 come from `@noble/hashes`, so they run the same on the phone and in Convex.
 
-### 9.4 What the server can and can't see
+### 12.5 What the server can and can't see
 
 Per PRODUCT.md principle 5, copy about sync must not claim more than this.
 
-**The server cannot see any stored value:** names, notes, prayer entries, habit titles, dates inside rows, settings.
+**The server cannot see any stored value.** That covers names, notes, prayer entries, habit titles, dates inside rows and settings.
 
 **The server can see:**
 
 - the Clerk identity
 - which tables a user has rows in, and how many
-- row ids, which are random
+- row ids, which are random or keyed hashes that it can't reverse
+- which rows belong to keyed tables, from the `k` prefix
 - which columns changed and when, from the clocks, `seq` and the times of requests
 - whether a row is deleted
 - the device ids
@@ -425,45 +777,120 @@ From this the server could, for example, see that a user updates the prayer log 
 
 The AI companion is separate. Text sent to an AI provider is not covered by this encryption and needs its own disclosure.
 
-The server could also hold back rows or replay old ones. Encryption stops it from forging or altering values, but not from withholding them. Detecting withheld rows is out of scope for v1.
+The server could also hold back rows or replay old ones. Encryption stops it from forging or changing values, but not from withholding them. Detecting withheld rows is out of scope for v1.
 
-## 10. Testing
+## 13. Invariants
 
-- **Unit tests in Node:** `clock`, `merge`, `checksum`, `schema` generators and the schema diff run in Node with no React Native.
-- **Convergence test:** simulated devices and a simulated server apply random interleavings of edits, deletes, offline periods and clock skew. After full sync, every device must hold identical rows and identical checksums. This is the main test for decision 5.
-- **Store tests:** these run the same Drizzle tables against Node's SQLite, through the storage adapter the SDK uses internally.
-- **Convex functions:** tested with `convex-test`, covering auth, merge and checksum upkeep inside `push`, and `minVersion` refusal.
-- **On device, before each milestone ships:** opening the database with SQLCipher, migrations, the Argon2id timing and the chunked first pull, all on the Itel S23.
+Tests, reviews and code comments refer to these by number.
 
-## 11. Build order
+1. App code never imports Drizzle, `expo-sqlite`, SecureStore or libsodium for AyyurDB data. It uses `@ayyur/db` only.
+2. Every write to a synced table goes through the write queue, as one synchronous transaction that ticks the clock, updates `_clocks`, `_version` and the checksum, and records pending columns when sync is on.
+3. A column's clock changes only when its value changes.
+4. `_version` equals the largest clock in `_clocks`, or the delete clock for a tombstone.
+5. A tombstone has no content, empty `_clocks` and empty `_extra`. Nothing ever turns it back into a live row.
+6. Keyed tables and singletons have no `remove`.
+7. A keyed row's id equals `ids.keyedId(currentIdKey, table, keyColumns)`, at all times outside a re-keying transaction.
+8. Every `ref` targets a random-id table or a singleton.
+9. Each bucket total equals the sum of the hashes of the rows in that bucket mod 2^128, on the device and in Convex.
+10. `mergeRow` is deterministic, commutative, associative and idempotent.
+11. After full sync with no further writes, every device and Convex hold the same `(table, id, version, deleted)` set and the same checksums.
+12. The server never decrypts and never holds a key that could decrypt.
+13. Every value in Convex is bound by its associated data to its user, table, row, column and clock.
+14. Convex never stores a clock more than 5 minutes ahead of its own time at the moment of the push.
+15. No device syncs on an epoch other than the account's current one.
+16. `seq` only rises, including across wipes.
+17. Reconcile compares checksums only when `_pending` is empty and the local cursor equals the server checksum's `seq`.
+18. Reads never return tombstones to app code.
+19. The local database file is never deleted while its key exists.
+
+## 14. Testing
+
+- **Unit tests in Node.** `clock`, `merge`, `ids`, `checksum`, the `schema` generators and the schema diff run in Node with no React Native.
+- **Convergence test.** This is the main test for decision 5. Simulated devices and a simulated server apply random interleavings of inserts, edits, upserts on the same keys, deletes, offline periods and clock skew. After full sync, every device must hold identical rows and identical checksums (invariant 11). It runs with a fixed seed in CI and with random seeds locally.
+- **Scenario tests**, one per failure that revision 2 fixed:
+  - two devices upsert the same key offline and end with one row
+  - a keyed row is cleared and set again, and ends set
+  - a device signs in, re-keys, and its keyed rows merge with the account's
+  - phone A wipes with `'delete'`, and phone B stops and uploads nothing
+  - phone A resets the key, and phone B goes `locked` and uploads after unlocking
+  - a device with a clock a year ahead gets `clockAhead`, then repairs once its clock is fixed
+  - reconcile during a lagging pull waits instead of reporting a difference
+  - a pulled page interrupted halfway and applied again gives the same result
+- **Store tests.** These run the same Drizzle tables against Node's SQLite, through the storage adapter the SDK uses internally.
+- **Convex functions.** Tested with `convex-test`, covering auth, every refusal in 8.2, merge and checksum upkeep inside `push`, `changes` paging across tables, and wipe batches.
+- **Schema rules.** Tests that the schema refuses a `ref` to a keyed table, a nullable key column, a `json` key column, and kinds combined in one table.
+- **On device, before each milestone ships**, all on the Itel S23: opening the database with SQLCipher, migrations, write transaction times, the Argon2id timing, and the chunked first pull of 5,000 rows without visible stutter.
+
+## 15. Build order
 
 | Milestone | Delivers | Needs |
 |---|---|---|
-| M1 Local | `schema`, `clock`, `store`, `checksum`, `react`, one example table. The app reads and writes real data, local-only. | Development build (SQLCipher), expo-sqlite, drizzle-orm, drizzle-kit, expo-secure-store, @noble/hashes |
-| M2 Keys | `crypto`: local key, data key, wrapping, recovery code, value encryption. | react-native-libsodium (after the check in 9.3) |
-| M3 Sync | Convex tables and functions, Clerk sign-in, push, pull, the live subscription. | convex, @clerk/clerk-expo, a Convex project, a Clerk application |
-| M4 Repair and lifecycle | Reconcile, account flows, `wipe`, the Clerk webhook, the schema evolution guard. | — |
+| M0 Device check | An EAS development build installed on the Itel S23. Checks: SQLCipher opens with `PRAGMA key`; `react-native-libsodium` runs `crypto_pwhash` and its timing; how Drizzle's `expo` driver runs transactions and whether it offers a synchronous one; a 50-row write transaction's time; the SecureStore option name for "this device only". Results go into this spec. | `expo-dev-client`, an EAS project |
+| M1a Pure modules | `clock`, `merge`, `ids`, `checksum`, the `schema` builders and diff, the convergence test. Runs in Node only, so it can start before M0 and doesn't affect Expo Go. | `@noble/hashes` |
+| M1 Local | `store`, the write queue, `react`, one example table of each kind. The app reads and writes real data, local-only. `android.allowBackup: false`. | M0, expo-sqlite with SQLCipher, drizzle-orm, drizzle-kit, expo-secure-store, expo-crypto |
+| M2 Keys | `crypto`: local key, id key, data key, wrapping, recovery code, value encryption. | `react-native-libsodium`, after M0 |
+| M3 Sync | Convex tables and functions, Clerk sign-in, push, pull, the live subscription, epochs, clock bounds. | convex, @clerk/clerk-expo, a Convex project, a Clerk application |
+| M4 Repair and lifecycle | Reconcile, account flows, `wipe`, the Clerk webhook, the schema evolution guard. | none |
 
-The tables themselves come from the data-model spec. M1 can start with an example table and swap it out.
+The tables themselves come from the data-model spec. M1 can start with example tables and swap them out.
 
 Hand-offs to the Frontend/UI thread:
 
-- `AyyurDBProvider` goes in `src/app/_layout.tsx`.
-- `src/onboarding/store.ts` moves from AsyncStorage to the profile table behind the same interface.
-- Screens are needed for the passphrase, the recovery code, the `locked` state and "Delete my cloud copy".
-- Development builds replace Expo Go.
+- `AyyurDBProvider` goes in `src/app/_layout.tsx`, and the splash screen waits for it.
+- `src/onboarding/store.ts` moves from AsyncStorage to the profile singleton behind the same interface.
+- Screens are needed for setting the passphrase, showing the recovery code, the `locked` state, "Delete my cloud copy", "Start over with an empty cloud copy", and the `clockWrong` state.
+- Notices are needed for `'cloudDeleted'` and `'keyChanged'`.
+- From M1, the app runs in a development build. Expo Go no longer opens it.
 
-## 12. Open questions
+## 16. Proposals awaiting the founder
 
-1. **Convex limits per user:** maximum rows, bytes and push rate, to stop one account filling the deployment.
-2. **When the passphrase is asked:** at the moment sync is turned on, or later. This is for Product and Frontend.
-3. **Argon2id library:** confirm `crypto_pwhash` in `react-native-libsodium` on native, or pick a separate module (9.3).
-4. **Switching accounts:** signing out of account A and into account B merges this phone's data, including A's, into B. Is that wanted, or should switching accounts ask first?
-5. **Value length:** pad text values to fixed size steps so the length of a note leaks less? This costs storage.
-6. **Android backup:** exclude `ayyur.db` from Android Auto Backup, since its key can't be restored with it (4.2).
-7. **Rotating the data key:** this would mean re-encrypting every value. Out of scope for v1.
+These would change founder decisions. Until the founder agrees, build to section 1.1.
 
-## 13. Out of scope
+### P1. One generic Convex table instead of one per SQLite table
+
+Change decision 3 so Convex stores every synced row in one table:
+
+```ts
+rows: defineTable({
+  userId: v.string(),
+  table: v.string(),
+  rowId: v.string(),
+  version: v.string(),
+  deleted: v.boolean(),
+  seq: v.int64(),
+  device: v.string(),
+  cells: v.record(v.string(), cell),
+})
+  .index('by_user_row', ['userId', 'table', 'rowId'])
+  .index('by_user_seq', ['userId', 'seq']),
+```
+
+Why I think it's better:
+
+- Convex can't read or index content, so separate tables give it nothing.
+- `changes` becomes one index read of 200 rows. With one table per synced table, each page reads up to 200 rows from every table. That is 3,000 document reads per page with 15 tables, and the live subscription re-runs it after every push.
+- Adding a table or a column no longer needs a Convex deploy. The fixed release order and `serverBehind` go away, and `minVersion` matters only for breaking changes on the phone.
+- The Convex schema generator goes away.
+
+What it costs: the Convex dashboard shows one table, and `push` checks column names against the table metadata in code instead of through Convex's validator.
+
+It would change sections 4.4, 4.5, 8.1, 8.2 and 8.3.
+
+### P2. Start the SDK in `src/db/` instead of a workspace package
+
+Change decision 1 so the SDK starts as a folder inside the app, with a lint rule that stops `src/` from importing its internals. Convex imports the plain-TypeScript modules by relative path. The repo today is one app with no workspaces. A package adds npm workspaces, Metro configuration and a second `tsconfig` before there is any code to share. Moving the folder into a package later is a mechanical change.
+
+## 17. Open questions
+
+1. **Convex limits per user.** Maximum rows, bytes and push rate, to stop one account filling the deployment.
+2. **When the passphrase is asked.** At the moment sync is turned on, or later. This is for Product and Frontend.
+3. **Argon2id library.** Answered by M0 (12.4).
+4. **Switching accounts.** Signing out of account A and into account B merges this phone's data, including A's, into B. B's vault then holds A's random row ids too, so the server could link the two accounts. Is that wanted, or should switching accounts ask first?
+5. **Value length.** Pad text values to fixed size steps so a note's length leaks less? This costs storage.
+6. **Rotating the data key.** This would mean encrypting every value again. Out of scope for v1.
+7. **Deleting local data with the account.** Product decides (11.7).
+
+## 18. Out of scope
 
 - web
 - sharing data between users, including the family plan
@@ -471,3 +898,9 @@ Hand-offs to the Frontend/UI thread:
 - server-side search or analytics on content
 - the AI companion's data path
 - detecting a server that withholds rows
+- rotating the data key
+
+## 19. Changelog
+
+- **2026-10-16, revision 1.** First agreed design.
+- **2026-11-03, revision 2.** Added section 0 on how to use the spec, the glossary, table kinds with keyed ids and the id key (B1), no deletes on keyed tables and singletons (B2), account epochs (B3), server clock bounds and `clockWrong` (B4), reconcile preconditions and two-way repair (B5), the synchronous write queue and batched change events (B6), `android.allowBackup: false` (B7), section 5 on rules for table design, the `ref` column type, value size limits, the refusal codes, `wipe` and `vault` details, the invariants list, the scenario tests, M0 and M1a, and proposals P1 and P2. Resolved the conflict in revision 1 between applying a pulled page in one transaction and yielding between chunks: each chunk is now its own transaction, and the cursor moves with the last one.
