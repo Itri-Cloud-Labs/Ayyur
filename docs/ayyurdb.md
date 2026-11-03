@@ -1,6 +1,6 @@
 # AyyurDB: architecture spec
 
-Owner: Backend agent. Status: revision 2, agreed design, not built yet. First written 2026-10-16, revised 2026-11-03.
+Owner: Backend agent. Status: revision 3, agreed design, not built yet. First written 2026-10-16, revised 2026-11-03.
 
 AyyurDB is the SDK that stores Ayyur's data on the phone. When the user turns on cloud sync, it also keeps that data in step with Convex across their devices. This spec covers the machinery: the schema system, the local store, row ids, sync, checksums, encryption and keys, and the account flows around them.
 
@@ -13,7 +13,7 @@ This section is for every agent, human or model, who builds on AyyurDB.
 - **MUST** and **MUST NOT** mark rules. Breaking one is a bug, even if the code works in a quick test. Most of these rules protect behaviour that only shows up with two phones, a bad clock or a lost key, which a quick test never covers.
 - **SHOULD** marks a strong default. If you depart from it, write down why in the pull request.
 - Section 13 lists the invariants as one numbered list. Tests refer to them by number, and so should code comments that rely on them.
-- The founder settled the decisions in section 1.1. Do not change them without the founder. Section 16 holds proposals that would change them, and they stay proposals until the founder says otherwise.
+- The founder settled the decisions in section 1.1. Do not change them without the founder. Section 16 records the founder decisions that were later changed and the reasons, so nobody brings back the old design by accident.
 - The Backend agent made the decisions in section 1.2. Another agent who wants to change one should raise it with the Backend thread first.
 - When you change this spec, add a line to the changelog in section 19.
 - If the code and this spec disagree, the spec wins until someone updates it. Do not "fix" the spec to match code that drifted.
@@ -24,9 +24,9 @@ This section is for every agent, human or model, who builds on AyyurDB.
 
 | # | Decision |
 |---|---|
-| 1 | The SDK is a workspace package, `packages/ayyurdb`, imported as `@ayyur/db`. See proposal P2 in section 16. |
-| 2 | One schema, declared with `createAyyurDBSchema()`, generates the SQLite tables through Drizzle, the Convex tables and the TypeScript types. |
-| 3 | Convex has the same tables and columns as SQLite. Every content column is stored encrypted, one ciphertext per column. Only sync metadata is readable. See proposal P1 in section 16. |
+| 1 | The SDK is a folder inside the app, `src/db/`, imported as `@/db`. A lint rule keeps app code out of its internals. Changed on 2026-11-03, see 16.2. |
+| 2 | One schema, declared with `createAyyurDBSchema()`, generates the SQLite tables through Drizzle and the TypeScript types. Convex doesn't need it (decision 3). |
+| 3 | Convex stores every synced row in one table, `rows`. Each document names the table it belongs to and holds each content column as its own ciphertext. Only sync metadata is readable. Convex doesn't know the schema. Changed on 2026-11-03, see 16.1. |
 | 4 | Sync is live across several devices while the app is open. |
 | 5 | Conflicts merge per column. The value with the newest hybrid logical clock (HLC) wins. Convex and the devices apply the same rule, so the server merges without decrypting. |
 | 6 | A delete beats any edit. Deleting wipes the content and leaves a tombstone, which is kept forever. |
@@ -49,7 +49,7 @@ Mapping from the founder's diagram:
 | SADBSS (Sync System), `ReconcileDB(Convex, Local)` | `sync` |
 | ADBCSS (Checksum System), `GetCheckSum(db.content)` | `checksum` |
 | Local SQLite, SQL schema | `store` |
-| Convex, Convex schema | `@ayyur/db/convex` plus the app's `convex/` folder |
+| Convex, Convex schema | `src/db/convex/` plus the app's `convex/` folder |
 
 ### 1.2 Added by the Backend agent in revision 2
 
@@ -86,38 +86,43 @@ These came out of a review of revision 1. Each fixes a failure that revision 1 a
 | `seq` | A per-account counter that Convex stamps on every change it applies. Pull cursors are `seq` values. |
 | Pending | Columns changed on this device and not yet confirmed by Convex. Stored in `_pending`. |
 
-## 3. Package layout
+## 3. Code layout
 
 ```
-packages/ayyurdb/
-  src/
-    schema/      createAyyurDBSchema, column builders, Drizzle and Convex generators, schema diff
-    clock/       HLC: tick, receive, compare
-    merge/       mergeRow, shared by the device and Convex
-    ids/         random ids, keyed id derivation, re-keying
-    crypto/      value encryption, key wrapping, local database key
-    store/       opens the SQLCipher database, runs migrations, the write queue, change events
-    checksum/    row hash, running totals, getChecksum
-    sync/        push queue, pull cursor, reconcile, epochs, account flows
-    tables/      one file per table: its schema and its SDK read and write methods
-    react/       AyyurDBProvider, useAyyurQuery, useSyncState
-    convex/      server side: generated tables, merge mutation, pull query, checksum query, wipe
+src/db/
+  index.ts       the public API for app code: the `db` object with every table's read and write methods
+  schema/        createAyyurDBSchema, column builders, the Drizzle generator, schema diff
+  clock/         HLC: tick, receive, compare
+  merge/         mergeRow, shared by the device and Convex
+  ids/           random ids, keyed id derivation, re-keying
+  crypto/        value encryption, key wrapping, local database key
+  store/         opens the SQLCipher database, runs migrations, the write queue, change events
+  checksum/      row hash, running totals, getChecksum
+  sync/          push queue, pull cursor, reconcile, epochs, account flows
+  tables/        one file per table: its schema and its SDK read and write methods
+  react/         AyyurDBProvider, useAyyurQuery, useSyncState
+  convex/        server side: the rows table, push, changes, checksum queries, vault, wipe
   drizzle/       migrations generated by drizzle-kit, committed
   schema-snapshots/  one JSON snapshot per released schema version, committed
   test/
-convex/          the app's Convex deployment: schema.ts and thin wrappers around @ayyur/db/convex
+convex/          the app's Convex deployment: schema.ts and thin wrappers around src/db/convex
 ```
 
-`merge`, `clock`, `ids` and `checksum` are plain TypeScript with no React Native imports. They MUST stay that way, because the app and Convex run the same code. Convex bundles `convex/` with esbuild and imports the package from the workspace.
+Import rules. A lint rule (`no-restricted-imports` in `eslint.config.js`) enforces the first two.
 
-Nothing outside `packages/ayyurdb` imports Drizzle, `expo-sqlite`, `react-native-libsodium` or `expo-secure-store` for AyyurDB's data. App code uses `@ayyur/db` and `@ayyur/db/react` only. A lint rule (`no-restricted-imports`) enforces this in `src/`.
+- App code, meaning everything in `src/` outside `src/db/`, imports only `@/db` and `@/db/react`. It never imports a file deeper inside `src/db/`.
+- Nothing outside `src/db/` imports Drizzle, `expo-sqlite`, `react-native-libsodium` or `expo-secure-store` for AyyurDB's data.
+- `schema`, `merge`, `clock`, `ids`, `checksum` and `convex` are plain TypeScript. They MUST NOT import React Native, Expo or anything that does, because Convex runs them too. A second lint rule covers these folders.
+- `convex/` imports from `src/db/convex/` and the plain modules above by relative path, such as `../src/db/merge`. Convex bundles them with esbuild.
+
+The SDK may move into a workspace package later. That is a mechanical change: move the folder and replace `@/db` imports with the package name.
 
 ## 4. Schema system
 
 ### 4.1 Declaring
 
 ```ts
-import { createAyyurDBSchema, table, text, integer, boolean, enumOf, json, day, ref } from '@ayyur/db/schema';
+import { createAyyurDBSchema, table, text, integer, boolean, enumOf, json, day, ref } from '@/db/schema';
 
 export const schema = createAyyurDBSchema({
   version: 3,
@@ -163,6 +168,8 @@ export const schema = createAyyurDBSchema({
 
 Every column is required unless it is `.nullable()` or has a `.default()`.
 
+Table and column names MUST match `^[a-z][A-Za-z0-9]{0,63}$`. Names starting with `_` are reserved for sync columns, and Convex refuses record keys that start with `_` or `$`. The schema throws at import time on a name that doesn't match.
+
 A serialised value, meaning the JSON text that gets encrypted, MUST NOT exceed 16 KiB. The SDK throws on writes above this. Longer content, such as a long journal entry, has to be split across rows by the data model.
 
 ### 4.3 Table kinds and options
@@ -193,10 +200,11 @@ Local tables are plain Drizzle tables with an `id` column. They have no `_clocks
 
 From one schema the generators derive:
 
-1. **Drizzle tables** for SQLite, with the sync columns from 7.1 added to every synced table. `drizzle-kit generate` with driver `expo` turns them into SQL migrations in `packages/ayyurdb/drizzle/`, which are committed.
-2. **Convex tables** for `convex/schema.ts`, one per synced table, shaped as in 8.1.
-3. **TypeScript types** for each row, for each table's insert and patch shapes, and for each keyed table's key.
-4. **Table metadata** used at runtime: each table's kind, key columns and column types. Convex uses it to validate row ids and column names in `push`.
+1. **Drizzle tables** for SQLite, with the sync columns from 7.1 added to every synced table. `drizzle-kit generate` with driver `expo` turns them into SQL migrations in `src/db/drizzle/`, which are committed.
+2. **TypeScript types** for each row, for each table's insert and patch shapes, and for each keyed table's key.
+3. **Table metadata** used on the device at runtime: each table's kind, key columns and column types.
+
+Convex gets nothing from the schema. Its `rows` table (8.1) holds rows of any table, so adding a table or a column never needs a Convex deploy. Convex MUST NOT import the schema or the table metadata. If it did, an older server would have to know about newer tables, and the release order problem in 16.1 would come back.
 
 The tables are built when the schema is imported. No generated source files are checked in apart from the Drizzle migrations and the schema snapshots.
 
@@ -220,7 +228,7 @@ Breaking changes, which need `minVersion` raised to the new version:
 
 The comparison test fails if a breaking change lands without the `minVersion` bump.
 
-Release order is fixed: deploy Convex first, then ship the app. That way the server's tables are always at least as new as any client's. If `push` receives a column or table it doesn't know, it refuses with `serverBehind` (8.3). That only happens if the release order was broken.
+Additive changes ship with the app alone. No Convex deploy is needed, because Convex stores cells under whatever column names the device sends.
 
 Older clients and columns they don't know:
 
@@ -230,6 +238,8 @@ Older clients and columns they don't know:
 - After the app updates and its migration adds the column, the store decrypts these values into it, with their clocks, in one transaction.
 
 `minVersion` is stored in the Convex `meta` table for the deployment. Every push and pull sends the client's schema version. If it is below `minVersion`, the server refuses, and the client sets its sync state to `updateRequired`. Local reads and writes keep working.
+
+Raising `minVersion` in Convex is a manual step, done with an internal mutation, `meta.setMinVersion`, through `npx convex run`. It MUST happen only after the app version that needs it is live in both app stores. Raising it earlier would stop sync for every user, with no update available to fix it.
 
 ## 5. Rules for table design
 
@@ -401,32 +411,38 @@ const logs = useAyyurQuery(db.habitLog.forDay, today);
 
 ### 8.1 Tables
 
-Every synced table becomes a Convex table:
+Every synced row of every table lives in one Convex table:
 
 ```ts
-habitLog: defineTable({
-  userId: v.string(),          // Clerk subject, from ctx.auth
+const cell = v.object({ hlc: v.string(), ct: v.bytes() });
+
+rows: defineTable({
+  userId: v.string(),               // Clerk subject, from ctx.auth
+  table: v.string(),                // the SQLite table this row belongs to, such as 'habitLog'
   rowId: v.string(),
-  version: v.string(),         // HLC, as in _version
+  bucket: v.number(),               // 0 to 15, the checksum bucket of rowId (section 10)
+  version: v.string(),              // HLC, as in _version
   deleted: v.boolean(),
-  seq: v.int64(),              // server change counter, for pulling
-  device: v.string(),          // device that last changed the row
-  habitId: v.optional(cell),   // cell = v.object({ hlc: v.string(), ct: v.bytes() })
-  day: v.optional(cell),
-  status: v.optional(cell),
+  seq: v.int64(),                   // server change counter, for pulling
+  device: v.string(),               // device that last changed the row
+  cells: v.record(v.string(), cell), // column name to cell; empty for a tombstone
 })
-  .index('by_user_row', ['userId', 'rowId'])
-  .index('by_user_seq', ['userId', 'seq']),
+  .index('by_user_row', ['userId', 'table', 'rowId'])
+  .index('by_user_seq', ['userId', 'seq'])
+  .index('by_user_bucket', ['userId', 'table', 'bucket']),
 ```
 
-Shared tables:
+- `bucket` is computed by `push` from `rowId` with the checksum module. It exists so `bucketRows` reads one index range instead of every row the user has.
+- `cells` holds every column the device sent, including columns from a schema newer than the device that later pulls the row (4.5).
+
+Other tables:
 
 | Table | Holds |
 |---|---|
 | `meta` | One document per deployment: `minVersion`. |
 | `account` | One per user: `epoch`, `seq` (the last value handed out), `wiping` (`null`, `'delete'` or `'reset'`), `lastWipe` (`'delete'`, `'reset'` or `null`). It survives a wipe and is removed only when the Clerk user is deleted. |
 | `vault` | One per user: the data key wrapped twice (passphrase and recovery code), the KDF salt and parameters, `keyVersion`, the id key encrypted with the data key, and the `epoch` it was created in. |
-| `checksums` | One per user, table and bucket: the running total. |
+| `checksums` | One per user, table and bucket: the running total. Index `by_user_table_bucket`. |
 
 ### 8.2 Request envelope and refusals
 
@@ -441,13 +457,12 @@ Every function except `account.status` takes the user from `ctx.auth.getUserIden
 | no `vault` | `noVault` | Runs the epoch-change handling in 11.6. |
 | `epoch !== account.epoch` | `epochChanged` | Runs the epoch-change handling in 11.6. |
 
-`push` adds three more:
+`push` adds two more:
 
 | Check | Refusal code | What the device does |
 |---|---|---|
 | any clock in the batch is more than 5 minutes ahead of server time | `clockAhead` | Runs the clock repair in 9.4. |
-| a table or column the server's schema doesn't have | `serverBehind` | State `error`. Logs it. The release order was broken. |
-| more than 100 rows, an id of the wrong form for its table, a non-deleted row with no cells, or a ciphertext over 17 KiB | `badRequest` | State `error`. Logs it. This is a client bug. |
+| more than 100 rows; a table or column name that doesn't match the pattern in 4.2; a row id that isn't a UUID v4, a keyed id or `'singleton'`; a non-deleted row with no cells; a tombstone with cells; or a ciphertext over 17 KiB | `badRequest` | State `error`. Logs it. This is a client bug. |
 
 Refusals are thrown as `ConvexError` with `{ code }`. A `clockAhead` refusal also carries `serverTime`. A refused call changes nothing.
 
@@ -471,15 +486,17 @@ A `WireRow` is `{ table, rowId, version, deleted, cells: { [column]: { hlc, ct }
 
 **`push`**, for each incoming row, inside the one mutation:
 
-1. Load the stored row by `by_user_row`.
+1. Load the stored row by `by_user_row`, with the row's `table` and `rowId`.
 2. If there is none, the merged row is the incoming row.
 3. Otherwise the merged row is `mergeRow(stored, incoming)` (9.5).
 4. If the merged row equals the stored row, meaning the same `deleted`, `version` and cell clocks, write nothing and stamp no `seq`.
-5. Otherwise take the next `account.seq`, write the merged row with that `seq` and `device`, and update the `checksums` total for its bucket: subtract the old row hash and add the new one.
+5. Otherwise take the next `account.seq`, write the merged row with that `seq`, `device` and `bucket`, and update the `checksums` total for its table and bucket: subtract the old row hash and add the new one.
 
 The response's `serverTime` is `Date.now()` in the mutation.
 
-**`changes`** reads, for each synced table, up to 200 rows from `by_user_seq` with `seq > cursor`. It merges the lists, sorts them by `seq`, and returns the 200 with the lowest `seq`. `nextCursor` is the highest `seq` returned, or `cursor` if none. Taking the lowest across all tables matters. A table with low `seq` values left out of the page would be skipped forever once the cursor moved past them.
+**`changes`** reads up to 200 rows from `by_user_seq` with `seq > cursor`, in `seq` order, and returns them. `nextCursor` is the highest `seq` returned, or `cursor` if none. A page holds rows from any mix of tables.
+
+**`bucketRows`** reads `by_user_bucket` for one table and bucket. **`rows`** reads `by_user_row` once per requested id.
 
 **`checksum`** and **`bucketRows`** return `account.seq` alongside the data. Convex reads a query from one consistent snapshot, so the totals match exactly that `seq`.
 
@@ -547,7 +564,7 @@ Re-stamping is safe. Convex never accepted those clocks, so no other device has 
 
 ### 9.5 Merge rule
 
-One function, `mergeRow(a, b)`, in `@ayyur/db/merge`. Both the `push` mutation and the device, when it applies pulled rows, use it:
+One function, `mergeRow(a, b)`, in `src/db/merge/`. Both the `push` mutation and the device, when it applies pulled rows, use it:
 
 ```
 if a.deleted or b.deleted:
@@ -597,7 +614,7 @@ The checksum is for catching sync bugs. It isn't tamper-proof, because the serve
 | `offline` | Can't reach Convex. |
 | `updateRequired` | The app's schema is below the server's `minVersion`. |
 | `clockWrong` | This phone's clock is more than 5 minutes ahead of the server's (9.4). |
-| `error` | Reconcile failed 3 times, or Convex refused with `serverBehind` or `badRequest`. Shown quietly, retried on the next trigger. |
+| `error` | Reconcile failed 3 times, or Convex refused with `badRequest`. Shown quietly, retried on the next trigger. |
 
 `notice` is `null`, `'cloudDeleted'` or `'keyChanged'`. It tells the UI to explain, once, why sync stopped (11.6). The UI clears it with `dismissSyncNotice()`.
 
@@ -783,7 +800,7 @@ The server could also hold back rows or replay old ones. Encryption stops it fro
 
 Tests, reviews and code comments refer to these by number.
 
-1. App code never imports Drizzle, `expo-sqlite`, SecureStore or libsodium for AyyurDB data. It uses `@ayyur/db` only.
+1. App code never imports Drizzle, `expo-sqlite`, SecureStore or libsodium for AyyurDB data. It uses `@/db` and `@/db/react` only.
 2. Every write to a synced table goes through the write queue, as one synchronous transaction that ticks the clock, updates `_clocks`, `_version` and the checksum, and records pending columns when sync is on.
 3. A column's clock changes only when its value changes.
 4. `_version` equals the largest clock in `_clocks`, or the delete clock for a tombstone.
@@ -817,8 +834,8 @@ Tests, reviews and code comments refer to these by number.
   - reconcile during a lagging pull waits instead of reporting a difference
   - a pulled page interrupted halfway and applied again gives the same result
 - **Store tests.** These run the same Drizzle tables against Node's SQLite, through the storage adapter the SDK uses internally.
-- **Convex functions.** Tested with `convex-test`, covering auth, every refusal in 8.2, merge and checksum upkeep inside `push`, `changes` paging across tables, and wipe batches.
-- **Schema rules.** Tests that the schema refuses a `ref` to a keyed table, a nullable key column, a `json` key column, and kinds combined in one table.
+- **Convex functions.** Tested with `convex-test`, covering auth, every refusal in 8.2, merge and checksum upkeep inside `push`, `changes` paging, `bucketRows` reading only its bucket, and wipe batches.
+- **Schema rules.** Tests that the schema refuses a table or column name outside the pattern in 4.2, a `ref` to a keyed table, a nullable key column, a `json` key column, and kinds combined in one table.
 - **On device, before each milestone ships**, all on the Itel S23: opening the database with SQLCipher, migrations, write transaction times, the Argon2id timing, and the chunked first pull of 5,000 rows without visible stutter.
 
 ## 15. Build order
@@ -829,7 +846,7 @@ Tests, reviews and code comments refer to these by number.
 | M1a Pure modules | `clock`, `merge`, `ids`, `checksum`, the `schema` builders and diff, the convergence test. Runs in Node only, so it can start before M0 and doesn't affect Expo Go. | `@noble/hashes` |
 | M1 Local | `store`, the write queue, `react`, one example table of each kind. The app reads and writes real data, local-only. `android.allowBackup: false`. | M0, expo-sqlite with SQLCipher, drizzle-orm, drizzle-kit, expo-secure-store, expo-crypto |
 | M2 Keys | `crypto`: local key, id key, data key, wrapping, recovery code, value encryption. | `react-native-libsodium`, after M0 |
-| M3 Sync | Convex tables and functions, Clerk sign-in, push, pull, the live subscription, epochs, clock bounds. | convex, @clerk/clerk-expo, a Convex project, a Clerk application |
+| M3 Sync | The Convex `rows` table and functions, Clerk sign-in, push, pull, the live subscription, epochs, clock bounds. | convex, @clerk/clerk-expo, a Convex project, a Clerk application |
 | M4 Repair and lifecycle | Reconcile, account flows, `wipe`, the Clerk webhook, the schema evolution guard. | none |
 
 The tables themselves come from the data-model spec. M1 can start with example tables and swap them out.
@@ -842,43 +859,40 @@ Hand-offs to the Frontend/UI thread:
 - Notices are needed for `'cloudDeleted'` and `'keyChanged'`.
 - From M1, the app runs in a development build. Expo Go no longer opens it.
 
-## 16. Proposals awaiting the founder
+## 16. Founder decisions that changed
 
-These would change founder decisions. Until the founder agrees, build to section 1.1.
+Both changes were agreed with the founder on 2026-11-03, before any code existed. They are recorded here so no one brings back the old design without knowing why it went.
 
-### P1. One generic Convex table instead of one per SQLite table
+### 16.1 One Convex table instead of one per SQLite table
 
-Change decision 3 so Convex stores every synced row in one table:
+Revision 2 mirrored every SQLite table in Convex, with the same columns, each holding ciphertext. Revision 3 uses the single `rows` table in 8.1.
 
-```ts
-rows: defineTable({
-  userId: v.string(),
-  table: v.string(),
-  rowId: v.string(),
-  version: v.string(),
-  deleted: v.boolean(),
-  seq: v.int64(),
-  device: v.string(),
-  cells: v.record(v.string(), cell),
-})
-  .index('by_user_row', ['userId', 'table', 'rowId'])
-  .index('by_user_seq', ['userId', 'seq']),
-```
+Why the mirror went:
 
-Why I think it's better:
+- Separate tables help a server that queries or indexes content. Convex can't read the content, so it only ever compares clocks and stores bytes, and that work is the same for every table.
+- Pulling got more expensive with every table. To return the 200 lowest `seq` values across N tables, `changes` had to read up to 200 rows from each. That is 3,000 document reads per page with 15 tables, and the live subscription runs the query again after every push from any of the user's devices. With one table it reads 200 rows from one index.
+- Every new table or column needed a Convex deploy before the app shipped. If that order slipped, pushes failed for users until the deploy happened. With one table, Convex doesn't know the schema, and additive changes ship with the app alone.
+- It needed a generator from the schema to Convex tables, which no longer exists.
 
-- Convex can't read or index content, so separate tables give it nothing.
-- `changes` becomes one index read of 200 rows. With one table per synced table, each page reads up to 200 rows from every table. That is 3,000 document reads per page with 15 tables, and the live subscription re-runs it after every push.
-- Adding a table or a column no longer needs a Convex deploy. The fixed release order and `serverBehind` go away, and `minVersion` matters only for breaking changes on the phone.
-- The Convex schema generator goes away.
+What it cost, accepted:
 
-What it costs: the Convex dashboard shows one table, and `push` checks column names against the table metadata in code instead of through Convex's validator.
+- The Convex dashboard shows one table. Finding a table's rows means filtering on `table`. Every value is ciphertext, so the dashboard showed little either way.
+- Convex no longer checks column names against a schema. It checks the name pattern, the row id forms, the row shape and the sizes (8.2). A buggy app could store a cell under a wrong column name. That only affects the user's own data, and devices keep unknown cells in `_extra` without using them.
+- Privacy is unchanged. The server saw table names before, as Convex table names, and sees them now as the `table` field.
 
-It would change sections 4.4, 4.5, 8.1, 8.2 and 8.3.
+Do not split `rows` back into per-table Convex tables, and do not make Convex import the schema.
 
-### P2. Start the SDK in `src/db/` instead of a workspace package
+### 16.2 A folder inside the app instead of a workspace package
 
-Change decision 1 so the SDK starts as a folder inside the app, with a lint rule that stops `src/` from importing its internals. Convex imports the plain-TypeScript modules by relative path. The repo today is one app with no workspaces. A package adds npm workspaces, Metro configuration and a second `tsconfig` before there is any code to share. Moving the folder into a package later is a mechanical change.
+Revision 2 put the SDK in `packages/ayyurdb` as a workspace package, `@ayyur/db`. Revision 3 puts it in `src/db/`, imported as `@/db`.
+
+Why:
+
+- The repo is one app, with no workspaces. A package needed npm workspaces with the app as the root package, Metro configuration to resolve it, its own `tsconfig` and test configuration, and an exports map, all before there was any code to share.
+- The package's one real benefit was a hard boundary around internal files. The lint rules in section 3 give nearly the same boundary.
+- Convex can import the plain modules by relative path.
+
+Moving to a package later costs about an hour: move the folder, add the workspace, and replace the `@/db` imports. Do it if a second app or a shared server ever needs the SDK.
 
 ## 17. Open questions
 
@@ -903,4 +917,5 @@ Change decision 1 so the SDK starts as a folder inside the app, with a lint rule
 ## 19. Changelog
 
 - **2026-10-16, revision 1.** First agreed design.
-- **2026-11-03, revision 2.** Added section 0 on how to use the spec, the glossary, table kinds with keyed ids and the id key (B1), no deletes on keyed tables and singletons (B2), account epochs (B3), server clock bounds and `clockWrong` (B4), reconcile preconditions and two-way repair (B5), the synchronous write queue and batched change events (B6), `android.allowBackup: false` (B7), section 5 on rules for table design, the `ref` column type, value size limits, the refusal codes, `wipe` and `vault` details, the invariants list, the scenario tests, M0 and M1a, and proposals P1 and P2. Resolved the conflict in revision 1 between applying a pulled page in one transaction and yielding between chunks: each chunk is now its own transaction, and the cursor moves with the last one.
+- **2026-11-03, revision 2.** Added section 0 on how to use the spec, the glossary, table kinds with keyed ids and the id key (B1), no deletes on keyed tables and singletons (B2), account epochs (B3), server clock bounds and `clockWrong` (B4), reconcile preconditions and two-way repair (B5), the synchronous write queue and batched change events (B6), `android.allowBackup: false` (B7), section 5 on rules for table design, the `ref` column type, value size limits, the refusal codes, `wipe` and `vault` details, the invariants list, the scenario tests, M0 and M1a, and two proposals for the founder. Resolved the conflict in revision 1 between applying a pulled page in one transaction and yielding between chunks: each chunk is now its own transaction, and the cursor moves with the last one.
+- **2026-11-03, revision 3.** The founder accepted both proposals. Convex stores all synced rows in one `rows` table and no longer knows the schema (decision 3, 16.1). The SDK lives in `src/db/` and is imported as `@/db` (decision 1, 16.2). The `serverBehind` refusal and the fixed Convex-first release order are gone. `minVersion` is raised by hand only after the app update is live. Added the name pattern for tables and columns, the `bucket` field and `by_user_bucket` index so `bucketRows` doesn't scan every row, and the import lint rules.
