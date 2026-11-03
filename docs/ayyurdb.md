@@ -172,6 +172,8 @@ Table and column names MUST match `^[a-z][A-Za-z0-9]{0,63}$`. Names starting wit
 
 A serialised value, meaning the JSON text that gets encrypted, MUST NOT exceed 16 KiB. The SDK throws on writes above this. Longer content, such as a long journal entry, has to be split across rows by the data model.
 
+A whole row's serialised values, added together, MUST NOT exceed 256 KiB. The SDK throws on a write that would pass it. Convex documents are capped at 1 MiB, and this leaves room for encryption overhead and `_extra` cells from newer schemas. In practice a table hits it only with many large text columns, which rule R10 and the 16 KiB limit already discourage.
+
 ### 4.3 Table kinds and options
 
 A table has exactly one kind. The schema throws at import time if options combine kinds.
@@ -462,7 +464,7 @@ Every function except `account.status` takes the user from `ctx.auth.getUserIden
 | Check | Refusal code | What the device does |
 |---|---|---|
 | any clock in the batch is more than 5 minutes ahead of server time | `clockAhead` | Runs the clock repair in 9.4. |
-| more than 100 rows; a table or column name that doesn't match the pattern in 4.2; a row id that isn't a UUID v4, a keyed id or `'singleton'`; a non-deleted row with no cells; a tombstone with cells; or a ciphertext over 17 KiB | `badRequest` | State `error`. Logs it. This is a client bug. |
+| more than 100 rows or more than 4 MiB of ciphertext in the batch; a row whose ciphertext totals more than 300 KiB; a table or column name that doesn't match the pattern in 4.2; a row id that isn't a UUID v4, a keyed id or `'singleton'`; a non-deleted row with no cells; a tombstone with cells; or a ciphertext over 17 KiB | `badRequest` | State `error`. Logs it. This is a client bug. |
 
 Refusals are thrown as `ConvexError` with `{ code }`. A `clockAhead` refusal also carries `serverTime`. A refused call changes nothing.
 
@@ -473,8 +475,8 @@ Refusals are thrown as `ConvexError` with `{ code }`. A `clockAhead` refusal als
 | `push` | mutation | envelope, `device`, `rows: WireRow[]` (at most 100) | `{ seq, serverTime }` |
 | `changes` | query | envelope, `cursor` | `{ rows: WireRow[], nextCursor }`, at most 200 rows |
 | `checksum` | query | envelope, optional `table` | `{ seq, tables }` or `{ seq, buckets }` |
-| `bucketRows` | query | envelope, `table`, `bucket` | `{ seq, rows: { rowId, version, deleted }[] }` |
-| `rows` | query | envelope, `table`, `rowIds` (at most 100) | `WireRow[]` |
+| `bucketRows` | query | envelope, `table`, `bucket`, optional `after` | `{ seq, rows: { rowId, version, deleted }[], next }`, at most 2,000 rows |
+| `rows` | query | envelope, `table`, `rowIds` (at most 100) | `{ rows: WireRow[], missing: string[] }`, at most 4 MiB |
 | `account.status` | query | none | `{ epoch, hasVault, wiping, lastWipe }`, or `null` without an identity |
 | `vault.get` | query | none | the vault, or `null` |
 | `vault.create` | mutation | the new vault | `{ epoch, serverTime }`. Fails with `vaultExists` if one exists, or `wiping` during a wipe. |
@@ -494,9 +496,11 @@ A `WireRow` is `{ table, rowId, version, deleted, cells: { [column]: { hlc, ct }
 
 The response's `serverTime` is `Date.now()` in the mutation.
 
-**`changes`** reads up to 200 rows from `by_user_seq` with `seq > cursor`, in `seq` order, and returns them. `nextCursor` is the highest `seq` returned, or `cursor` if none. A page holds rows from any mix of tables.
+**`changes`** reads up to 200 rows from `by_user_seq` with `seq > cursor`, in `seq` order. It stops early once the ciphertext in the page passes 4 MiB, but always returns at least one row if any exist. `nextCursor` is the highest `seq` returned, or `cursor` if none. A page holds rows from any mix of tables.
 
-**`bucketRows`** reads `by_user_bucket` for one table and bucket. **`rows`** reads `by_user_row` once per requested id.
+**`bucketRows`** reads `by_user_bucket` for one table and bucket, ordered by `rowId`, starting after `after`. It returns at most 2,000 rows. `next` is the last `rowId` returned when more remain, or `null`. Reconcile follows `next` until it is `null`. Every page carries `seq`, and if `seq` changes between pages, reconcile starts that bucket again.
+
+**`rows`** reads `by_user_row` once per requested id, in the order given. It stops before the response would pass 4 MiB of ciphertext. Ids it didn't reach go in `missing`, and the caller asks for them again. Ids that don't exist on the server are left out of both lists.
 
 **`checksum`** and **`bucketRows`** return `account.seq` alongside the data. Convex reads a query from one consistent snapshot, so the totals match exactly that `seq`.
 
@@ -511,10 +515,27 @@ Suppose a device with a slow clock uploads after another device has already pull
 `wipe(reason)` runs as:
 
 1. One mutation sets `account.epoch += 1`, sets `account.wiping = reason`, and deletes the `vault`. From this moment every sync call from every device is refused, before any row is touched.
-2. Scheduled mutations delete the user's rows from every synced table and their `checksums`, in batches small enough to stay under Convex's per-mutation limits.
+2. Scheduled mutations delete the user's `rows` and `checksums`, 1,000 documents per mutation, each scheduling the next until none remain.
 3. The last batch sets `account.wiping = null` and `account.lastWipe = reason`. `account.seq` is not reset, so cursors never go backwards.
 
 A wipe for a deleted Clerk user does the same and then deletes `account`.
+
+### 8.6 Convex limits this design depends on
+
+From https://docs.convex.dev/production/state/limits, read on 2026-11-03. Recheck them when Convex changes plans or pricing.
+
+| Convex limit | Value | Where this spec stays under it |
+|---|---|---|
+| Document size | 1 MiB | One row's values total at most 256 KiB as plaintext, and `push` refuses rows over 300 KiB of ciphertext (4.2, 8.2). |
+| Function arguments | 16 MiB | `push` batches carry at most 4 MiB of ciphertext (11.3). |
+| Return value | 16 MiB | `changes` and `rows` stop at 4 MiB of ciphertext. `bucketRows` returns metadata only, 2,000 rows a page (8.3). |
+| Data read per query or mutation | 16 MiB | The same caps as above. `bucketRows` reads whole documents to return their metadata, so a page of 2,000 rows of average size stays well under. |
+| Documents scanned per query or mutation | 32,000 | Every read uses an index range with a page limit. Nothing filters in code. |
+| Documents written per mutation | 16,000 | A `push` writes at most 100 rows, 100 checksum totals and `account`. Wipe batches delete 1,000 documents. |
+| Execution time of user code | 1 second | `push` hashes and merges at most 100 rows. M3 measures this. |
+| Top-level field names | 64 characters, alphanumeric and `_` | `rows` uses fixed field names. Column names live inside `cells`, and 4.2 limits them to 64 characters. |
+
+Per-user limits on rows, bytes and push rate are still open (section 17).
 
 ## 9. Clocks and merging
 
@@ -628,13 +649,13 @@ Sync runs:
 - pull, continuously through the live subscription while the app is in the foreground and unlocked
 - reconcile, on launch, when the app returns to the foreground, and after each successful push
 
-Nothing runs in the background (section 18). When the app goes to the background, sync finishes the request in flight and stops. The subscription closes.
+Nothing runs in the background (section 18). When `AppState` changes to `background`, sync skips the 2-second timer and pushes whatever is pending at once. It then finishes the requests in flight and stops, and the subscription closes. Without the immediate push, an edit made just before leaving the app would wait for the next launch to reach other devices. If the OS suspends the app before the push completes, the entries stay pending and go out on the next launch.
 
 ### 11.3 Push
 
 1. A write that adds to `_pending` starts a 2-second timer. Each further write restarts it.
 2. When the timer fires, sync reads the pending entries. For each changed column it sends `{ hlc, ct }`, encrypted as in 12.2. A row whose pending entry is `*` is sent as a tombstone.
-3. It sends batches of up to 100 rows to `push`.
+3. It sends batches of up to 100 rows and 4 MiB of ciphertext to `push`, whichever limit comes first.
 4. When a batch is accepted, sync removes a pending entry only if its clock still matches what was sent. A column edited again while the batch was in flight stays pending.
 5. It folds `serverTime` into the clock (9.3).
 6. On a network error, the pending entries stay, and sync retries with backoff: 2 s, 4 s, 8 s, up to 60 s.
@@ -903,6 +924,8 @@ Moving to a package later costs about an hour: move the folder, add the workspac
 5. **Value length.** Pad text values to fixed size steps so a note's length leaks less? This costs storage.
 6. **Rotating the data key.** This would mean encrypting every value again. Out of scope for v1.
 7. **Deleting local data with the account.** Product decides (11.7).
+8. **Where logs go.** The spec says "logs it" for refusals, decryption failures, bad clocks and reconcile errors. Today that can only mean the device console, which nobody sees in production. A crash and error service would help, but anything sent off the phone must leave out row ids, table names and values, and PRODUCT.md principle 5 requires telling the user. Decide the service and what it may receive before M3.
+9. **Exporting data.** Should users be able to export everything as a file, for their own records or to move to another app? The SDK can read every table, so the cost is mostly UI. If yes, the format is for Product.
 
 ## 18. Out of scope
 
@@ -919,3 +942,4 @@ Moving to a package later costs about an hour: move the folder, add the workspac
 - **2026-10-16, revision 1.** First agreed design.
 - **2026-11-03, revision 2.** Added section 0 on how to use the spec, the glossary, table kinds with keyed ids and the id key (B1), no deletes on keyed tables and singletons (B2), account epochs (B3), server clock bounds and `clockWrong` (B4), reconcile preconditions and two-way repair (B5), the synchronous write queue and batched change events (B6), `android.allowBackup: false` (B7), section 5 on rules for table design, the `ref` column type, value size limits, the refusal codes, `wipe` and `vault` details, the invariants list, the scenario tests, M0 and M1a, and two proposals for the founder. Resolved the conflict in revision 1 between applying a pulled page in one transaction and yielding between chunks: each chunk is now its own transaction, and the cursor moves with the last one.
 - **2026-11-03, revision 3.** The founder accepted both proposals. Convex stores all synced rows in one `rows` table and no longer knows the schema (decision 3, 16.1). The SDK lives in `src/db/` and is imported as `@/db` (decision 1, 16.2). The `serverBehind` refusal and the fixed Convex-first release order are gone. `minVersion` is raised by hand only after the app update is live. Added the name pattern for tables and columns, the `bucket` field and `by_user_bucket` index so `bucketRows` doesn't scan every row, and the import lint rules.
+- **2026-11-03, revision 3, later the same day.** Checked the design against Convex's published limits and added section 8.6. Added a 256 KiB cap per row, a 4 MiB cap per `push` batch and per `changes` or `rows` response, paging for `bucketRows`, and 1,000-document wipe batches. Sync now pushes at once when the app goes to the background. Added open questions 8 on logging and 9 on data export.
