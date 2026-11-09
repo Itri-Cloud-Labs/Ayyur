@@ -62,6 +62,7 @@ Then open the app in Expo Go, or press `a` for Android or `i` for iOS.
 | `npm run web` | Start and open in a browser |
 | `npm run lint` | Lint with ESLint |
 | `npx tsc --noEmit` | Typecheck |
+| `npm test` | Run the AyyurDB unit, scenario and convergence tests in Node (`docs/ayyurdb.md` section 14) |
 | `npm run brand` | Regenerate the mascot, logo and icons from `scripts/brand/generate.mjs` |
 
 ## Design
