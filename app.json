@@ -7,7 +7,8 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.itricloudlabs.ayyur"
     },
     "android": {
       "adaptiveIcon": {
@@ -15,7 +16,9 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.itricloudlabs.ayyur",
+      "allowBackup": false
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -31,11 +34,25 @@
           "image": "./assets/splash-icon.png",
           "imageWidth": 200
         }
-      ]
+      ],
+      [
+        "expo-sqlite",
+        {
+          "useSQLCipher": true
+        }
+      ],
+      "expo-secure-store"
     ],
     "scheme": "ayyur",
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "cf08ffc1-64e8-48f0-8093-8827dc08cd95"
+      }
+    },
+    "owner": "itrii"
   }
 }

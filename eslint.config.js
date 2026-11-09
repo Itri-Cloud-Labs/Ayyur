@@ -19,7 +19,8 @@ module.exports = defineConfig([
         {
           patterns: [
             {
-              group: ['@/db/*', '!@/db/react'],
+              // `@/db/m0` is the temporary device check (spec section 15). Remove it here when M0 closes.
+              group: ['@/db/*', '!@/db/react', '!@/db/m0'],
               message: 'App code imports AyyurDB only through @/db and @/db/react (docs/ayyurdb.md section 3).',
             },
             {
