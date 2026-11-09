@@ -46,6 +46,13 @@
     "scheme": "ayyur",
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "cf08ffc1-64e8-48f0-8093-8827dc08cd95"
+      }
+    },
+    "owner": "itrii"
   }
 }
